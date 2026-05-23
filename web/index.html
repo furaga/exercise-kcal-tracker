@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=31">
+    <link rel="stylesheet" href="./styles.css?v=33">
   </head>
   <body>
     <main class="app-shell">
@@ -22,6 +22,24 @@
         </div>
         <div class="date-badge" id="todayBadge"></div>
       </header>
+
+      <section class="panel auth-panel" aria-labelledby="authTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Account</p>
+            <h2 id="authTitle">クラウド保存</h2>
+          </div>
+          <button class="secondary-button compact hidden" id="signOutButton" type="button">ログアウト</button>
+        </div>
+        <div class="auth-row" id="signedOutControls">
+          <label>
+            <span>メールアドレス</span>
+            <input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com">
+          </label>
+          <button class="primary-button" id="signInButton" type="button">ログインリンク送信</button>
+        </div>
+        <div class="auth-status" id="authStatus">未ログイン: この端末内に保存します。</div>
+      </section>
 
       <section class="summary-band" aria-labelledby="summaryTitle">
         <div class="total-block">
@@ -178,6 +196,7 @@
       </section>
     </main>
 
-    <script src="./app.js?v=31" defer></script>
+    <script src="./vendor/supabase.js"></script>
+    <script src="./app.js?v=33" defer></script>
   </body>
 </html>

@@ -245,6 +245,37 @@ h3 {
   background: #fbfcfd;
 }
 
+.auth-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 8px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.auth-row label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.auth-row span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.auth-status {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eef1fb;
+  color: #29345d;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .subtle-weight label,
 .form-grid label,
 .set-row label,
@@ -590,6 +621,7 @@ select:focus,
   }
 
   .subtle-weight,
+  .auth-row,
   .summary-grid,
   .preview-strip {
     grid-template-columns: 1fr;

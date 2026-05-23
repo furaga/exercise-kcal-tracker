@@ -2,7 +2,22 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 const storeKey = "training-log-v3";
+const supabaseUrl = "https://lavpmdrjwtsbsxumfnon.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhdnBtZHJqd3RzYnN4dW1mbm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjI0NzcsImV4cCI6MjA5NTA5ODQ3N30.fVSQoXxRRiF_iGJn8gREfCgZPgbM-BMT07dXLzWlibA";
 const referenceWeightKg = 57.5;
+const supabaseClient =
+  window.supabase?.createClient?.(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }) || null;
+
+let currentUser = null;
+let cloudReady = false;
+let cloudSyncTimer = null;
+let suppressCloudSync = false;
 
 const defaultStrengthRates = {
   latPulldown: { label: "ラットプルダウン", kcalPerRep: 0.32, kcalPerMinute: 1.6 },
@@ -22,6 +37,11 @@ const defaultCardioRates = {
 const elements = {
   todayBadge: $("#todayBadge"),
   allCalories: $("#allCalories"),
+  authStatus: $("#authStatus"),
+  emailInput: $("#emailInput"),
+  signInButton: $("#signInButton"),
+  signOutButton: $("#signOutButton"),
+  signedOutControls: $("#signedOutControls"),
   todayCalories: $("#todayCalories"),
   weekCalories: $("#weekCalories"),
   monthCalories: $("#monthCalories"),
@@ -134,6 +154,21 @@ function readStore() {
 
 function writeStore(store) {
   localStorage.setItem(storeKey, JSON.stringify(store));
+  scheduleCloudSync();
+}
+
+function writeLocalStore(store) {
+  localStorage.setItem(storeKey, JSON.stringify(store));
+}
+
+function scheduleCloudSync() {
+  if (!currentUser || !cloudReady || suppressCloudSync) return;
+  window.clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = window.setTimeout(() => {
+    syncCloud().catch((error) => {
+      setAuthStatus(`クラウド同期に失敗: ${error.message}`);
+    });
+  }, 500);
 }
 
 function selectedDate() {
@@ -167,6 +202,284 @@ function latestWeightOn(dateKey = selectedDate()) {
   const date = candidates[0] || Object.keys(weights).sort().reverse()[0];
   if (!date) return null;
   return { date, value: Number(weights[date]) };
+}
+
+function setAuthStatus(message) {
+  if (elements.authStatus) {
+    elements.authStatus.textContent = message;
+  }
+}
+
+function updateAuthUi() {
+  const signedIn = Boolean(currentUser);
+  elements.signedOutControls?.classList.toggle("hidden", signedIn);
+  elements.signOutButton?.classList.toggle("hidden", !signedIn);
+  setAuthStatus(
+    signedIn
+      ? `${currentUser.email || "ログイン中"}: Supabaseに同期します。`
+      : "未ログイン: この端末内に保存します。",
+  );
+}
+
+function redirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+async function signInWithEmail() {
+  if (!supabaseClient) {
+    setAuthStatus("Supabaseライブラリを読み込めませんでした。");
+    return;
+  }
+  const email = elements.emailInput.value.trim();
+  if (!email) {
+    setAuthStatus("メールアドレスを入力してください。");
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectUrl() },
+  });
+  if (error) {
+    setAuthStatus(`ログインリンク送信に失敗: ${error.message}`);
+    return;
+  }
+  setAuthStatus("ログインリンクを送信しました。メールを確認してください。");
+}
+
+async function signOut() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  cloudReady = false;
+  updateAuthUi();
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function normalizeStoreForCloud(store) {
+  let changed = false;
+  const workouts = store.workouts.map((workout) => {
+    if (isUuid(workout.id)) return workout;
+    changed = true;
+    return { ...workout, id: uuid() };
+  });
+  if (changed) {
+    const next = { ...store, workouts };
+    writeLocalStore(next);
+    return next;
+  }
+  return store;
+}
+
+function workoutToRow(workout) {
+  return {
+    id: workout.id,
+    user_id: currentUser.id,
+    date: workout.date,
+    mode: workout.mode,
+    key: workout.key,
+    name: workout.name,
+    calories: workout.calories || 0,
+    minutes: workout.minutes ?? null,
+    reps: workout.reps ?? null,
+    volume: workout.volume ?? null,
+    sets: workout.sets ?? null,
+    base_rate: workout.baseRate ?? null,
+    effective_rate: workout.effectiveRate ?? null,
+    body_weight: workout.bodyWeight ?? null,
+    created_at: workout.createdAt || new Date().toISOString(),
+  };
+}
+
+function rowToWorkout(row) {
+  return {
+    id: row.id,
+    date: row.date,
+    mode: row.mode,
+    key: row.key,
+    name: row.name,
+    calories: Number(row.calories || 0),
+    minutes: row.minutes === null ? null : Number(row.minutes),
+    reps: row.reps === null ? null : Number(row.reps),
+    volume: row.volume === null ? null : Number(row.volume),
+    sets: row.sets || [],
+    baseRate: row.base_rate || {},
+    effectiveRate: row.effective_rate || row.base_rate || {},
+    bodyWeight: row.body_weight === null ? null : Number(row.body_weight),
+    createdAt: row.created_at,
+  };
+}
+
+function ratesToRows(rates) {
+  const rows = [];
+  Object.entries(rates.strength).forEach(([key, rate]) => {
+    rows.push({
+      user_id: currentUser.id,
+      exercise_type: "strength",
+      exercise_key: key,
+      label: rate.label,
+      kcal_per_rep: rate.kcalPerRep,
+      kcal_per_minute: rate.kcalPerMinute,
+    });
+  });
+  Object.entries(rates.cardio).forEach(([key, rate]) => {
+    rows.push({
+      user_id: currentUser.id,
+      exercise_type: "cardio",
+      exercise_key: key,
+      label: rate.label,
+      kcal_per_rep: null,
+      kcal_per_minute: rate.kcalPerMinute,
+    });
+  });
+  return rows;
+}
+
+function rowToRates(rows) {
+  const rates = defaultRates();
+  rows.forEach((row) => {
+    if (row.exercise_type === "strength") {
+      rates.strength[row.exercise_key] = {
+        label: row.label,
+        kcalPerRep: Number(row.kcal_per_rep || 0),
+        kcalPerMinute: Number(row.kcal_per_minute || 0),
+      };
+    } else if (row.exercise_type === "cardio") {
+      rates.cardio[row.exercise_key] = {
+        label: row.label,
+        kcalPerMinute: Number(row.kcal_per_minute || 0),
+      };
+    }
+  });
+  return rates;
+}
+
+async function deleteMissingRows(table, keyColumn, localKeys) {
+  const { data, error } = await supabaseClient.from(table).select(keyColumn);
+  if (error) throw error;
+  const local = new Set(localKeys);
+  for (const row of data || []) {
+    const value = row[keyColumn];
+    if (!local.has(value)) {
+      const { error: deleteError } = await supabaseClient.from(table).delete().eq(keyColumn, value);
+      if (deleteError) throw deleteError;
+    }
+  }
+}
+
+async function syncCloud() {
+  if (!supabaseClient || !currentUser || !cloudReady) return;
+  const store = normalizeStoreForCloud(readStore());
+  setAuthStatus("Supabaseに同期中...");
+
+  await deleteMissingRows("workouts", "id", store.workouts.map((workout) => workout.id));
+  if (store.workouts.length) {
+    const { error } = await supabaseClient.from("workouts").upsert(store.workouts.map(workoutToRow));
+    if (error) throw error;
+  }
+
+  await deleteMissingRows("weights", "date", Object.keys(store.weights));
+  const weightRows = Object.entries(store.weights).map(([date, weight]) => ({
+    user_id: currentUser.id,
+    date,
+    weight_kg: weight,
+  }));
+  if (weightRows.length) {
+    const { error } = await supabaseClient
+      .from("weights")
+      .upsert(weightRows, { onConflict: "user_id,date" });
+    if (error) throw error;
+  }
+
+  const { error: rateError } = await supabaseClient
+    .from("exercise_rates")
+    .upsert(ratesToRows(store.rates), { onConflict: "user_id,exercise_type,exercise_key" });
+  if (rateError) throw rateError;
+
+  setAuthStatus(`${currentUser.email || "ログイン中"}: 同期済み`);
+}
+
+async function loadCloudStore() {
+  const [workoutsResult, weightsResult, ratesResult] = await Promise.all([
+    supabaseClient.from("workouts").select("*").order("date", { ascending: true }),
+    supabaseClient.from("weights").select("*").order("date", { ascending: true }),
+    supabaseClient.from("exercise_rates").select("*"),
+  ]);
+
+  if (workoutsResult.error) throw workoutsResult.error;
+  if (weightsResult.error) throw weightsResult.error;
+  if (ratesResult.error) throw ratesResult.error;
+
+  const local = readStore();
+  const remoteWeights = {};
+  (weightsResult.data || []).forEach((row) => {
+    remoteWeights[row.date] = Number(row.weight_kg);
+  });
+  const remoteWorkouts = (workoutsResult.data || []).map(rowToWorkout);
+  const remoteRates = rowToRates(ratesResult.data || []);
+  const remoteWorkoutIds = new Set(remoteWorkouts.map((workout) => workout.id));
+
+  return {
+    weights: { ...local.weights, ...remoteWeights },
+    workouts: [
+      ...remoteWorkouts,
+      ...local.workouts.filter((workout) => !remoteWorkoutIds.has(workout.id)),
+    ],
+    rates: {
+      strength: { ...local.rates.strength, ...remoteRates.strength },
+      cardio: { ...local.rates.cardio, ...remoteRates.cardio },
+    },
+  };
+}
+
+async function loadUserData() {
+  if (!currentUser) return;
+  cloudReady = false;
+  setAuthStatus("Supabaseから読み込み中...");
+  try {
+    const mergedStore = await loadCloudStore();
+    suppressCloudSync = true;
+    writeLocalStore(mergedStore);
+    suppressCloudSync = false;
+    populateExerciseOptions();
+    renderRateEditor();
+    renderAll();
+    cloudReady = true;
+    await syncCloud();
+  } catch (error) {
+    cloudReady = false;
+    setAuthStatus(`Supabase読み込みに失敗: ${error.message}`);
+  }
+}
+
+async function initAuth() {
+  if (!supabaseClient) {
+    setAuthStatus("Supabaseライブラリを読み込めませんでした。");
+    return;
+  }
+
+  const { data } = await supabaseClient.auth.getSession();
+  currentUser = data.session?.user || null;
+  updateAuthUi();
+  if (currentUser) {
+    await loadUserData();
+  }
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    const nextUser = session?.user || null;
+    if (nextUser?.id === currentUser?.id) return;
+    currentUser = nextUser;
+    updateAuthUi();
+    if (currentUser) {
+      loadUserData();
+    } else {
+      cloudReady = false;
+      renderAll();
+    }
+  });
 }
 
 function activeBodyWeight() {
@@ -778,6 +1091,14 @@ $$(".mode-button").forEach((button) => {
   button.addEventListener("click", () => setMode(button.dataset.mode));
 });
 
+elements.signInButton.addEventListener("click", signInWithEmail);
+elements.signOutButton.addEventListener("click", signOut);
+elements.emailInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    signInWithEmail();
+  }
+});
 elements.entryDate.addEventListener("change", loadWeightForDate);
 elements.bodyWeight.addEventListener("input", renderPreviews);
 elements.saveWeightButton.addEventListener("click", saveWeight);
@@ -810,3 +1131,4 @@ if ("serviceWorker" in navigator) {
 }
 
 renderAll();
+initAuth();
