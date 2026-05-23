@@ -3,8 +3,10 @@ const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 const storeKey = "training-log-v3";
 const supabaseUrl = "https://lavpmdrjwtsbsxumfnon.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhdnBtZHJqd3RzYnN4dW1mbm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjI0NzcsImV4cCI6MjA5NTA5ODQ3N30.fVSQoXxRRiF_iGJn8gREfCgZPgbM-BMT07dXLzWlibA";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhdnBtZHJqd3RzYnN4dW1mbm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjI0NzcsImV4cCI6MjA5NTA5ODQ3N30.fVSQoXxRRiF_iGJn8gREfCgZPgbM-BMT07dXLzWlibA";
 const referenceWeightKg = 57.5;
+const weeklyGoalKcal = 2000;
 const supabaseClient =
   window.supabase?.createClient?.(supabaseUrl, supabaseAnonKey, {
     auth: {
@@ -37,14 +39,13 @@ const defaultCardioRates = {
 const elements = {
   todayBadge: $("#todayBadge"),
   allCalories: $("#allCalories"),
+  weekCalories: $("#weekCalories"),
+  weekProgress: $("#weekProgress"),
+  weekChart: $("#weekChart"),
   authStatus: $("#authStatus"),
-  emailInput: $("#emailInput"),
-  signInButton: $("#signInButton"),
   googleSignInButton: $("#googleSignInButton"),
   signOutButton: $("#signOutButton"),
-  signedOutControls: $("#signedOutControls"),
   todayCalories: $("#todayCalories"),
-  weekCalories: $("#weekCalories"),
   monthCalories: $("#monthCalories"),
   loggedDays: $("#loggedDays"),
   entryDate: $("#entryDate"),
@@ -61,12 +62,16 @@ const elements = {
   strengthReps: $("#strengthReps"),
   strengthMinutes: $("#strengthMinutes"),
   strengthCalories: $("#strengthCalories"),
+  strengthSaveCalories: $("#strengthSaveCalories"),
   cardioName: $("#cardioName"),
   cardioMinutes: $("#cardioMinutes"),
+  cardioMinus: $("#cardioMinus"),
+  cardioPlus: $("#cardioPlus"),
   cardioRateNote: $("#cardioRateNote"),
   cardioRate: $("#cardioRate"),
   cardioPreviewMinutes: $("#cardioPreviewMinutes"),
   cardioCalories: $("#cardioCalories"),
+  cardioSaveCalories: $("#cardioSaveCalories"),
   statusText: $("#statusText"),
   rateEditor: $("#rateEditor"),
   resetRatesButton: $("#resetRatesButton"),
@@ -76,16 +81,9 @@ const elements = {
   exportButton: $("#exportButton"),
 };
 
-const formatBadge = new Intl.DateTimeFormat("ja-JP", {
-  month: "numeric",
-  day: "numeric",
-  weekday: "short",
-});
-
-const formatShortDate = new Intl.DateTimeFormat("ja-JP", {
-  month: "numeric",
-  day: "numeric",
-});
+const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+const weekChartLabels = ["月", "火", "水", "木", "金", "土", "日"];
+const numberFormat = new Intl.NumberFormat("ja-JP");
 
 function uuid() {
   if (crypto?.randomUUID) return crypto.randomUUID();
@@ -101,6 +99,68 @@ function defaultRates() {
     strength: clone(defaultStrengthRates),
     cardio: clone(defaultCardioRates),
   };
+}
+
+function mergeRateGroup(defaultGroup, savedGroup = {}) {
+  const merged = {};
+  Object.entries(defaultGroup).forEach(([key, defaultRate]) => {
+    const savedRate = savedGroup[key] || {};
+    merged[key] = {
+      ...defaultRate,
+      ...savedRate,
+      label: defaultRate.label,
+    };
+  });
+
+  Object.entries(savedGroup || {}).forEach(([key, rate]) => {
+    if (!merged[key]) merged[key] = rate;
+  });
+
+  return merged;
+}
+
+function normalizeStore(parsed = {}) {
+  return {
+    weights: parsed.weights || {},
+    workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
+    rates: {
+      strength: mergeRateGroup(defaultStrengthRates, parsed.rates?.strength),
+      cardio: mergeRateGroup(defaultCardioRates, parsed.rates?.cardio),
+    },
+  };
+}
+
+function emptyStore() {
+  return normalizeStore();
+}
+
+function readStore() {
+  try {
+    return normalizeStore(JSON.parse(localStorage.getItem(storeKey) || "{}"));
+  } catch {
+    return emptyStore();
+  }
+}
+
+function writeStore(store) {
+  localStorage.setItem(storeKey, JSON.stringify(normalizeStore(store)));
+  scheduleCloudSync();
+}
+
+function writeLocalStore(store) {
+  localStorage.setItem(storeKey, JSON.stringify(normalizeStore(store)));
+}
+
+function formatNumber(value) {
+  return numberFormat.format(Math.round(value || 0));
+}
+
+function formatBadgeDate(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}(${weekdayLabels[date.getDay()]})`;
+}
+
+function formatShortDate(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function localDate(date = new Date()) {
@@ -133,45 +193,6 @@ function startOfMonth(key) {
   return `${key.slice(0, 7)}-01`;
 }
 
-function emptyStore() {
-  return { weights: {}, workouts: [], rates: defaultRates() };
-}
-
-function readStore() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(storeKey) || "{}");
-    return {
-      weights: parsed.weights || {},
-      workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
-      rates: {
-        strength: { ...defaultRates().strength, ...(parsed.rates?.strength || {}) },
-        cardio: { ...defaultRates().cardio, ...(parsed.rates?.cardio || {}) },
-      },
-    };
-  } catch {
-    return emptyStore();
-  }
-}
-
-function writeStore(store) {
-  localStorage.setItem(storeKey, JSON.stringify(store));
-  scheduleCloudSync();
-}
-
-function writeLocalStore(store) {
-  localStorage.setItem(storeKey, JSON.stringify(store));
-}
-
-function scheduleCloudSync() {
-  if (!currentUser || !cloudReady || suppressCloudSync) return;
-  window.clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = window.setTimeout(() => {
-    syncCloud().catch((error) => {
-      setAuthStatus(`クラウド同期に失敗: ${error.message}`);
-    });
-  }, 500);
-}
-
 function selectedDate() {
   return elements.entryDate.value || localDate();
 }
@@ -181,17 +202,35 @@ function numberFromInput(input) {
   return Number.isFinite(value) && input.value !== "" ? value : null;
 }
 
-function setStatus(message, tone = "normal") {
-  elements.statusText.textContent = message;
-  elements.statusText.dataset.tone = tone;
-}
-
 function roundKcal(value) {
   return Math.round(value || 0);
 }
 
 function fixed(value, digits = 2) {
-  return Number(value || 0).toFixed(digits).replace(/\.?0+$/, "");
+  return Number(value || 0)
+    .toFixed(digits)
+    .replace(/\.?0+$/, "");
+}
+
+function setStatus(message, tone = "normal") {
+  elements.statusText.textContent = message;
+  elements.statusText.dataset.tone = tone;
+}
+
+function setAuthStatus(message) {
+  if (elements.authStatus) {
+    elements.authStatus.textContent = message;
+  }
+}
+
+function scheduleCloudSync() {
+  if (!currentUser || !cloudReady || suppressCloudSync) return;
+  window.clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = window.setTimeout(() => {
+    syncCloud().catch((error) => {
+      setAuthStatus(`クラウド同期に失敗しました: ${error.message}`);
+    });
+  }, 500);
 }
 
 function latestWeightOn(dateKey = selectedDate()) {
@@ -205,16 +244,14 @@ function latestWeightOn(dateKey = selectedDate()) {
   return { date, value: Number(weights[date]) };
 }
 
-function setAuthStatus(message) {
-  if (elements.authStatus) {
-    elements.authStatus.textContent = message;
-  }
-}
-
 function updateAuthUi() {
   const signedIn = Boolean(currentUser);
-  elements.signedOutControls?.classList.toggle("hidden", signedIn);
+  elements.googleSignInButton?.classList.toggle("hidden", signedIn);
   elements.signOutButton?.classList.toggle("hidden", !signedIn);
+  if (elements.googleSignInButton) {
+    elements.googleSignInButton.disabled = false;
+    elements.googleSignInButton.textContent = "ログイン";
+  }
   setAuthStatus(
     signedIn
       ? `${currentUser.email || "ログイン中"}: Supabaseに同期します。`
@@ -227,25 +264,7 @@ function redirectUrl() {
 }
 
 async function signInWithEmail() {
-  if (!supabaseClient) {
-    setAuthStatus("Supabaseライブラリを読み込めませんでした。");
-    return;
-  }
-  const email = elements.emailInput.value.trim();
-  if (!email) {
-    setAuthStatus("メールアドレスを入力してください。");
-    return;
-  }
-
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: redirectUrl() },
-  });
-  if (error) {
-    setAuthStatus(`ログインリンク送信に失敗: ${error.message}`);
-    return;
-  }
-  setAuthStatus("ログインリンクを送信しました。メールを確認してください。");
+  signInWithGoogle();
 }
 
 async function signInWithGoogle() {
@@ -255,7 +274,8 @@ async function signInWithGoogle() {
   }
 
   elements.googleSignInButton.disabled = true;
-  setAuthStatus("Googleログインへ移動します...");
+  elements.googleSignInButton.textContent = "接続中";
+  setAuthStatus("Googleログインへ移動しています...");
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: "google",
     options: {
@@ -267,7 +287,8 @@ async function signInWithGoogle() {
   });
   if (error) {
     elements.googleSignInButton.disabled = false;
-    setAuthStatus(`Googleログインに失敗: ${error.message}`);
+    elements.googleSignInButton.textContent = "ログイン";
+    setAuthStatus(`Googleログインに失敗しました: ${error.message}`);
   }
 }
 
@@ -378,17 +399,25 @@ function rowToRates(rows) {
       };
     }
   });
-  return rates;
+  return normalizeStore({ rates }).rates;
 }
 
 async function deleteMissingRows(table, keyColumn, localKeys) {
-  const { data, error } = await supabaseClient.from(table).select(keyColumn);
+  const { data, error } = await supabaseClient
+    .from(table)
+    .select(keyColumn)
+    .eq("user_id", currentUser.id);
   if (error) throw error;
+
   const local = new Set(localKeys);
   for (const row of data || []) {
     const value = row[keyColumn];
     if (!local.has(value)) {
-      const { error: deleteError } = await supabaseClient.from(table).delete().eq(keyColumn, value);
+      const { error: deleteError } = await supabaseClient
+        .from(table)
+        .delete()
+        .eq("user_id", currentUser.id)
+        .eq(keyColumn, value);
       if (deleteError) throw deleteError;
     }
   }
@@ -399,7 +428,11 @@ async function syncCloud() {
   const store = normalizeStoreForCloud(readStore());
   setAuthStatus("Supabaseに同期中...");
 
-  await deleteMissingRows("workouts", "id", store.workouts.map((workout) => workout.id));
+  await deleteMissingRows(
+    "workouts",
+    "id",
+    store.workouts.map((workout) => workout.id),
+  );
   if (store.workouts.length) {
     const { error } = await supabaseClient.from("workouts").upsert(store.workouts.map(workoutToRow));
     if (error) throw error;
@@ -446,7 +479,7 @@ async function loadCloudStore() {
   const remoteRates = rowToRates(ratesResult.data || []);
   const remoteWorkoutIds = new Set(remoteWorkouts.map((workout) => workout.id));
 
-  return {
+  return normalizeStore({
     weights: { ...local.weights, ...remoteWeights },
     workouts: [
       ...remoteWorkouts,
@@ -456,7 +489,7 @@ async function loadCloudStore() {
       strength: { ...local.rates.strength, ...remoteRates.strength },
       cardio: { ...local.rates.cardio, ...remoteRates.cardio },
     },
-  };
+  });
 }
 
 async function loadUserData() {
@@ -475,7 +508,7 @@ async function loadUserData() {
     await syncCloud();
   } catch (error) {
     cloudReady = false;
-    setAuthStatus(`Supabase読み込みに失敗: ${error.message}`);
+    setAuthStatus(`Supabaseの読み込みに失敗しました: ${error.message}`);
   }
 }
 
@@ -527,7 +560,7 @@ function adjustedRate(rate) {
 
 function weightNote() {
   const weight = activeBodyWeight();
-  if (Math.abs(weight - referenceWeightKg) < 0.05) return `基準${referenceWeightKg}kg`;
+  if (Math.abs(weight - referenceWeightKg) < 0.05) return `基準 ${referenceWeightKg}kg`;
   return `${fixed(weight, 1)}kg補正 x${fixed(weight / referenceWeightKg, 2)}`;
 }
 
@@ -575,24 +608,28 @@ function strengthVolume(sets) {
   return sets.reduce((sum, set) => sum + set.weight * set.reps, 0);
 }
 
+function firstRate(group) {
+  return Object.values(group)[0] || { label: "未設定", kcalPerRep: 0, kcalPerMinute: 0 };
+}
+
 function strengthEstimate() {
   const store = readStore();
   const sets = parseSets();
-  const baseRate = store.rates.strength[elements.strengthName.value];
+  const baseRate = store.rates.strength[elements.strengthName.value] || firstRate(store.rates.strength);
   const rate = adjustedRate(baseRate);
   const manualMinutes = numberFromInput(elements.strengthDuration);
   const minutes = manualMinutes || estimatedStrengthMinutes(sets);
   const reps = totalReps(sets);
-  const calories = reps * rate.kcalPerRep + minutes * rate.kcalPerMinute;
+  const calories = reps * (rate.kcalPerRep || 0) + minutes * (rate.kcalPerMinute || 0);
   return { sets, baseRate, rate, minutes, reps, calories, volume: strengthVolume(sets) };
 }
 
 function cardioEstimate() {
   const store = readStore();
-  const baseRate = store.rates.cardio[elements.cardioName.value];
+  const baseRate = store.rates.cardio[elements.cardioName.value] || firstRate(store.rates.cardio);
   const rate = adjustedRate(baseRate);
   const minutes = numberFromInput(elements.cardioMinutes) || 0;
-  const calories = minutes * rate.kcalPerMinute;
+  const calories = minutes * (rate.kcalPerMinute || 0);
   return { baseRate, rate, minutes, calories };
 }
 
@@ -633,7 +670,7 @@ function addSetRow(weight = "", reps = "") {
   remove.className = "remove-set-button";
   remove.type = "button";
   remove.title = "削除";
-  remove.textContent = "x";
+  remove.textContent = "×";
   remove.addEventListener("click", () => {
     row.remove();
     renumberSets();
@@ -653,35 +690,98 @@ function renumberSets() {
   });
 }
 
+function updateMinuteChips(minutes) {
+  $$("[data-cardio-minutes]").forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.cardioMinutes) === minutes);
+  });
+}
+
 function renderPreviews() {
   const strength = strengthEstimate();
   elements.strengthRateNote.textContent =
     `${strength.rate.label}: 基準 ${fixed(strength.baseRate.kcalPerRep)} kcal/回 + ` +
-    `${fixed(strength.baseRate.kcalPerMinute)} kcal/分 -> 補正後 ` +
+    `${fixed(strength.baseRate.kcalPerMinute)} kcal/分 → ` +
     `${fixed(strength.rate.kcalPerRep)} kcal/回 + ${fixed(strength.rate.kcalPerMinute)} kcal/分 (${weightNote()})`;
-  elements.strengthReps.textContent = String(strength.reps);
-  elements.strengthMinutes.textContent = String(strength.minutes);
-  elements.strengthCalories.textContent = String(roundKcal(strength.calories));
+  elements.strengthReps.textContent = formatNumber(strength.reps);
+  elements.strengthMinutes.textContent = fixed(strength.minutes, 1);
+  elements.strengthCalories.textContent = formatNumber(strength.calories);
+  elements.strengthSaveCalories.textContent = `${formatNumber(strength.calories)} kcal`;
 
   const cardio = cardioEstimate();
   elements.cardioRateNote.textContent =
-    `${cardio.rate.label}: 基準 ${fixed(cardio.baseRate.kcalPerMinute)} kcal/分 -> ` +
-    `補正後 ${fixed(cardio.rate.kcalPerMinute)} kcal/分 (${weightNote()})`;
+    `${cardio.rate.label}: 基準 ${fixed(cardio.baseRate.kcalPerMinute)} kcal/分 → ` +
+    `${fixed(cardio.rate.kcalPerMinute)} kcal/分 (${weightNote()})`;
   elements.cardioRate.textContent = fixed(cardio.rate.kcalPerMinute);
-  elements.cardioPreviewMinutes.textContent = String(cardio.minutes);
-  elements.cardioCalories.textContent = String(roundKcal(cardio.calories));
+  elements.cardioPreviewMinutes.textContent = formatNumber(cardio.minutes);
+  elements.cardioCalories.textContent = formatNumber(cardio.calories);
+  elements.cardioSaveCalories.textContent = `${formatNumber(cardio.calories)} kcal`;
+  updateMinuteChips(cardio.minutes);
 }
 
-function workoutsBetween(startKey, endKey) {
-  return readStore().workouts.filter((workout) => workout.date >= startKey && workout.date <= endKey);
+function workoutsBetween(startKey, endKey, store = readStore()) {
+  return store.workouts.filter((workout) => workout.date >= startKey && workout.date <= endKey);
+}
+
+function workoutsOn(dateKey, store = readStore()) {
+  return store.workouts.filter((workout) => workout.date === dateKey);
 }
 
 function sumCalories(workouts) {
   return workouts.reduce((sum, workout) => sum + (workout.calories || 0), 0);
 }
 
-function loggedDates(workouts) {
-  return new Set(workouts.map((workout) => workout.date));
+function loggedDateSet(store = readStore()) {
+  return new Set(store.workouts.map((workout) => workout.date));
+}
+
+function currentStreak(store = readStore()) {
+  const dates = loggedDateSet(store);
+  if (!dates.size) return 0;
+  let cursor = dates.has(localDate()) ? localDate() : Array.from(dates).sort().reverse()[0];
+  let streak = 0;
+  while (dates.has(cursor)) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+function renderWeekChart(store, weekStart) {
+  if (!elements.weekChart) return;
+  const today = localDate();
+  const dates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+  const values = dates.map((date) => sumCalories(workoutsOn(date, store)));
+  const previousValues = dates.map((date) => sumCalories(workoutsOn(addDays(date, -7), store)));
+  const maxValue = Math.max(1, ...values, ...previousValues);
+
+  elements.weekChart.textContent = "";
+  dates.forEach((date, index) => {
+    const value = values[index];
+    const previous = previousValues[index];
+    const day = document.createElement("div");
+    day.className = "week-day";
+    if (date === today) day.classList.add("today");
+
+    const plot = document.createElement("div");
+    plot.className = "week-plot";
+
+    const marker = document.createElement("span");
+    marker.className = "previous-marker";
+    marker.style.setProperty("--marker", `${Math.max(6, (previous / maxValue) * 88)}%`);
+
+    const bar = document.createElement("span");
+    bar.className = "week-bar";
+    if (!value) bar.classList.add("is-empty");
+    bar.style.setProperty("--bar", `${value ? Math.max(8, (value / maxValue) * 100) : 7}%`);
+
+    const label = document.createElement("span");
+    label.className = "week-label";
+    label.textContent = weekChartLabels[index];
+
+    plot.append(marker, bar);
+    day.append(plot, label);
+    elements.weekChart.append(day);
+  });
 }
 
 function renderSummary() {
@@ -689,15 +789,18 @@ function renderSummary() {
   const store = readStore();
   const weekStart = startOfWeek(today);
   const monthStart = startOfMonth(today);
-  const todayWorkouts = workoutsBetween(today, today);
-  const weekWorkouts = workoutsBetween(weekStart, today);
-  const monthWorkouts = workoutsBetween(monthStart, today);
+  const todayWorkouts = workoutsBetween(today, today, store);
+  const weekWorkouts = workoutsBetween(weekStart, today, store);
+  const monthWorkouts = workoutsBetween(monthStart, today, store);
+  const weekCalories = sumCalories(weekWorkouts);
 
-  elements.allCalories.textContent = String(roundKcal(sumCalories(store.workouts)));
-  elements.todayCalories.textContent = String(roundKcal(sumCalories(todayWorkouts)));
-  elements.weekCalories.textContent = String(roundKcal(sumCalories(weekWorkouts)));
-  elements.monthCalories.textContent = String(roundKcal(sumCalories(monthWorkouts)));
-  elements.loggedDays.textContent = String(loggedDates(store.workouts).size);
+  elements.allCalories.textContent = formatNumber(sumCalories(store.workouts));
+  elements.todayCalories.textContent = formatNumber(sumCalories(todayWorkouts));
+  elements.weekCalories.textContent = formatNumber(weekCalories);
+  elements.monthCalories.textContent = formatNumber(sumCalories(monthWorkouts));
+  elements.loggedDays.textContent = formatNumber(currentStreak(store));
+  elements.weekProgress.textContent = `${Math.round((weekCalories / weeklyGoalKcal) * 100)}%`;
+  renderWeekChart(store, weekStart);
 }
 
 function renderDailyList() {
@@ -716,7 +819,7 @@ function renderDailyList() {
   if (!dates.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "まだ記録はありません。種目を保存すると日ごとの消費カロリーが見えます。";
+    empty.textContent = "まだ記録はありません。種目を保存すると日別の消費カロリーがここに表示されます。";
     elements.dailyList.append(empty);
     return;
   }
@@ -724,16 +827,23 @@ function renderDailyList() {
   dates.slice(0, 30).forEach((date) => {
     const workouts = byDate.get(date);
     const calories = sumCalories(workouts);
+    const previousCalories = sumCalories(workoutsOn(addDays(date, -7), store));
     const item = document.createElement("article");
     item.className = "daily-item";
 
     const head = document.createElement("div");
     head.className = "daily-head";
     const dateLabel = document.createElement("strong");
-    dateLabel.textContent = formatShortDate.format(dateFromKey(date));
+    dateLabel.textContent = formatShortDate(dateFromKey(date));
     const kcal = document.createElement("span");
-    kcal.textContent = `${roundKcal(calories)} kcal`;
+    kcal.textContent = `${formatNumber(calories)} kcal`;
     head.append(dateLabel, kcal);
+
+    const meta = document.createElement("p");
+    meta.className = "daily-meta";
+    meta.textContent = previousCalories
+      ? `先週同日 ${formatNumber(previousCalories)} kcal / ${calories >= previousCalories ? "+" : ""}${formatNumber(calories - previousCalories)} kcal`
+      : "先週同日の記録なし";
 
     const track = document.createElement("div");
     track.className = "bar-track";
@@ -750,19 +860,19 @@ function renderDailyList() {
       chips.append(chip);
     });
 
-    item.append(head, track, chips);
+    item.append(head, meta, track, chips);
     elements.dailyList.append(item);
   });
 }
 
 function workoutDetail(workout) {
   if (workout.mode === "cardio") {
-    return `${workout.minutes}分 / ${fixed(workout.effectiveRate.kcalPerMinute)} kcal/分 / ${roundKcal(workout.calories)} kcal`;
+    return `${workout.minutes}分 / ${fixed(workout.effectiveRate.kcalPerMinute)} kcal/分 / ${formatNumber(workout.calories)} kcal`;
   }
-  const sets = workout.sets.map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
-  return `${sets} / ${workout.reps}回 / ${workout.minutes}分 / ` +
+  const sets = (workout.sets || []).map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
+  return `${sets} / ${formatNumber(workout.reps)}回 / ${fixed(workout.minutes, 1)}分 / ` +
     `${fixed(workout.effectiveRate.kcalPerRep)} kcal/回 + ${fixed(workout.effectiveRate.kcalPerMinute)} kcal/分 / ` +
-    `${roundKcal(workout.calories)} kcal`;
+    `${formatNumber(workout.calories)} kcal`;
 }
 
 function renderHistory() {
@@ -790,7 +900,7 @@ function renderHistory() {
     title.textContent = workout.name;
 
     const meta = document.createElement("span");
-    meta.textContent = `${formatShortDate.format(dateFromKey(workout.date))} ${workout.mode === "strength" ? "筋トレ" : "有酸素"}`;
+    meta.textContent = `${formatShortDate(dateFromKey(workout.date))} ${workout.mode === "strength" ? "筋トレ" : "有酸素"}`;
     title.append(meta);
 
     const detail = document.createElement("p");
@@ -800,7 +910,7 @@ function renderHistory() {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.title = "削除";
-    remove.textContent = "x";
+    remove.textContent = "×";
     remove.addEventListener("click", () => {
       const store = readStore();
       store.workouts = store.workouts.filter((item) => item.id !== workout.id);
@@ -820,7 +930,7 @@ function renderRateEditor() {
 
   const note = document.createElement("p");
   note.className = "rate-help";
-  note.textContent = `係数は基準${referenceWeightKg}kgの値です。体重メモがある日は入力体重に合わせて自動補正します。`;
+  note.textContent = `係数は基準 ${referenceWeightKg}kg の値です。体重メモがある日は入力体重に合わせて自動補正します。`;
   elements.rateEditor.append(note);
 
   const groups = [
@@ -926,7 +1036,7 @@ function saveStrength() {
     createdAt: new Date().toISOString(),
   });
   writeStore(store);
-  setStatus(`${estimate.rate.label} を保存しました。`);
+  setStatus(`${estimate.rate.label}を保存しました。`);
   elements.setList.textContent = "";
   elements.strengthDuration.value = "";
   addSetRow();
@@ -961,7 +1071,7 @@ function saveCardio() {
     createdAt: new Date().toISOString(),
   });
   writeStore(store);
-  setStatus(`${estimate.rate.label} を保存しました。`);
+  setStatus(`${estimate.rate.label}を保存しました。`);
   elements.cardioMinutes.value = "";
   renderAll();
 }
@@ -998,7 +1108,7 @@ function copyLastStrengthSet() {
   elements.setList.textContent = "";
   last.sets.forEach((set) => addSetRow(set.weight, set.reps));
   elements.strengthDuration.value = last.minutes;
-  setStatus(`${last.name} の前回セットをコピーしました。`);
+  setStatus(`${last.name}の前回セットをコピーしました。`);
 }
 
 function seedSamples() {
@@ -1028,7 +1138,7 @@ function seedSamples() {
     },
     { date: addDays(today, -2), mode: "cardio", key: "running", minutes: 22 },
     {
-      date: today,
+      date: addDays(today, -1),
       mode: "strength",
       key: "legPress",
       sets: [
@@ -1057,6 +1167,7 @@ function seedSamples() {
       });
       return;
     }
+
     const baseRate = store.rates.strength[sample.key];
     const rate = { ...baseRate, weightFactor: 1, bodyWeight: referenceWeightKg };
     const minutes = estimatedStrengthMinutes(sample.sets);
@@ -1102,50 +1213,62 @@ function resetRates() {
   setStatus("係数を初期値に戻しました。");
 }
 
-elements.todayBadge.textContent = formatBadge.format(new Date());
+function setCardioMinutes(minutes) {
+  elements.cardioMinutes.value = String(Math.max(1, Math.min(600, minutes)));
+  renderPreviews();
+}
+
+function adjustCardioMinutes(delta) {
+  const current = numberFromInput(elements.cardioMinutes) || 0;
+  setCardioMinutes(current + delta);
+}
+
+function bindEvents() {
+  $$(".mode-button").forEach((button) => {
+    button.addEventListener("click", () => setMode(button.dataset.mode));
+  });
+
+  elements.googleSignInButton.addEventListener("click", signInWithGoogle);
+  elements.signOutButton.addEventListener("click", signOut);
+  elements.entryDate.addEventListener("change", loadWeightForDate);
+  elements.bodyWeight.addEventListener("input", renderPreviews);
+  elements.saveWeightButton.addEventListener("click", saveWeight);
+  elements.strengthName.addEventListener("change", renderPreviews);
+  elements.strengthDuration.addEventListener("input", renderPreviews);
+  elements.cardioName.addEventListener("change", renderPreviews);
+  elements.cardioMinutes.addEventListener("input", renderPreviews);
+  elements.cardioMinus.addEventListener("click", () => adjustCardioMinutes(-5));
+  elements.cardioPlus.addEventListener("click", () => adjustCardioMinutes(5));
+  $$("[data-cardio-minutes]").forEach((button) => {
+    button.addEventListener("click", () => setCardioMinutes(Number(button.dataset.cardioMinutes)));
+  });
+  elements.addSetButton.addEventListener("click", () => addSetRow());
+  elements.copyLastSetButton.addEventListener("click", copyLastStrengthSet);
+  elements.resetRatesButton.addEventListener("click", resetRates);
+  elements.seedButton.addEventListener("click", seedSamples);
+  elements.exportButton.addEventListener("click", exportJson);
+
+  elements.strengthForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveStrength();
+  });
+
+  elements.cardioForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveCardio();
+  });
+}
+
+elements.todayBadge.textContent = formatBadgeDate(new Date());
 elements.entryDate.value = localDate();
 populateExerciseOptions();
 addSetRow();
 addSetRow();
 addSetRow();
-loadWeightForDate();
 renderRateEditor();
-
-$$(".mode-button").forEach((button) => {
-  button.addEventListener("click", () => setMode(button.dataset.mode));
-});
-
-elements.signInButton.addEventListener("click", signInWithEmail);
-elements.googleSignInButton.addEventListener("click", signInWithGoogle);
-elements.signOutButton.addEventListener("click", signOut);
-elements.emailInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    signInWithEmail();
-  }
-});
-elements.entryDate.addEventListener("change", loadWeightForDate);
-elements.bodyWeight.addEventListener("input", renderPreviews);
-elements.saveWeightButton.addEventListener("click", saveWeight);
-elements.strengthName.addEventListener("change", renderPreviews);
-elements.strengthDuration.addEventListener("input", renderPreviews);
-elements.cardioName.addEventListener("change", renderPreviews);
-elements.cardioMinutes.addEventListener("input", renderPreviews);
-elements.addSetButton.addEventListener("click", () => addSetRow());
-elements.copyLastSetButton.addEventListener("click", copyLastStrengthSet);
-elements.resetRatesButton.addEventListener("click", resetRates);
-elements.seedButton.addEventListener("click", seedSamples);
-elements.exportButton.addEventListener("click", exportJson);
-
-elements.strengthForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  saveStrength();
-});
-
-elements.cardioForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  saveCardio();
-});
+loadWeightForDate();
+setMode("cardio");
+bindEvents();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -1155,5 +1278,4 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-renderAll();
 initAuth();
