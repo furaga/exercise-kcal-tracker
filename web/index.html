@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=49">
+    <link rel="stylesheet" href="./styles.css?v=51">
   </head>
   <body>
     <main class="app-shell">
@@ -33,7 +33,6 @@
         <div class="summary-main-card">
           <div class="summary-title-row">
             <h2 id="summaryTitle">今週の消費カロリー</h2>
-            <span class="goal-badge">目安 2,000 kcal</span>
           </div>
           <div class="summary-total">
             <strong id="weekCalories">0</strong>
@@ -116,13 +115,16 @@
               <span id="cardioPreviewMinutes">0</span>
               <small>分</small>
             </div>
-            <div>
+            <div class="preview-output">
               <span id="cardioCalories">0</span>
               <small>消費kcal</small>
             </div>
           </div>
 
-          <p class="rate-note" id="cardioRateNote"></p>
+          <details class="rate-disclosure">
+            <summary>消費カロリー係数</summary>
+            <p class="rate-note" id="cardioRateNote"></p>
+          </details>
           <button class="primary-button" type="submit">保存・<span id="cardioSaveCalories">0 kcal</span></button>
         </form>
 
@@ -153,13 +155,16 @@
               <span id="strengthMinutes">0</span>
               <small>ボリューム</small>
             </div>
-            <div>
+            <div class="preview-output">
               <span id="strengthCalories">0</span>
               <small>消費</small>
             </div>
           </div>
 
-          <p class="rate-note" id="strengthRateNote"></p>
+          <details class="rate-disclosure">
+            <summary>消費カロリー係数</summary>
+            <p class="rate-note" id="strengthRateNote"></p>
+          </details>
           <button class="primary-button" type="submit">保存・<span id="strengthSaveCalories">0 kcal</span></button>
         </form>
 
@@ -197,26 +202,33 @@
         <div class="subtle-weight">
           <label>
             <span id="weightTitle">体重メモ</span>
-            <input id="bodyWeight" type="number" min="20" max="250" step="0.1" inputmode="decimal" placeholder="任意">
+            <span class="unit-input">
+              <input id="bodyWeight" type="number" min="20" max="250" step="0.1" inputmode="decimal" placeholder="68.4" aria-label="体重 kg">
+              <span>kg</span>
+            </span>
           </label>
           <button class="primary-button compact-save" id="saveWeightButton" type="button">保存</button>
         </div>
+        <p class="status weight-status" id="weightStatus" role="status"></p>
       </section>
 
-      <section class="panel settings-panel" aria-labelledby="settingsTitle">
-        <div class="section-heading">
+      <details class="panel settings-panel" aria-labelledby="settingsTitle">
+        <summary class="settings-summary">
           <div>
             <p class="section-kicker">Rates</p>
             <h2 id="settingsTitle">消費カロリー係数</h2>
           </div>
+          <span class="settings-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="settings-body">
           <button class="secondary-button compact" id="resetRatesButton" type="button">初期値</button>
+          <div class="rate-editor" id="rateEditor"></div>
         </div>
-        <div class="rate-editor" id="rateEditor"></div>
-      </section>
+      </details>
 
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=49" defer></script>
+    <script src="./app.js?v=51" defer></script>
   </body>
 </html>

@@ -551,6 +551,10 @@ select:focus,
   background: #edf5f2;
 }
 
+.preview-strip div.preview-output {
+  background: var(--teal-dark);
+}
+
 .preview-strip span {
   display: block;
   color: var(--ink);
@@ -566,6 +570,11 @@ select:focus,
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 850;
+}
+
+.preview-strip .preview-output span,
+.preview-strip .preview-output small {
+  color: #ffffff;
 }
 
 #strengthForm .preview-strip div {
@@ -596,6 +605,44 @@ select:focus,
   font-size: 0.84rem;
   font-weight: 800;
   line-height: 1.45;
+}
+
+.rate-disclosure {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+}
+
+.rate-disclosure summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 900;
+  list-style: none;
+}
+
+.rate-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.rate-disclosure summary::after {
+  content: "⌄";
+  display: inline-block;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.rate-disclosure[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.rate-disclosure .rate-note {
+  margin: 0 10px 10px;
 }
 
 .set-list {
@@ -774,6 +821,26 @@ select:focus,
   background: transparent;
 }
 
+.unit-input {
+  position: relative;
+  display: block;
+}
+
+.subtle-weight .unit-input input {
+  padding-right: 44px;
+}
+
+.subtle-weight .unit-input > span {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+  pointer-events: none;
+}
+
 .primary-button.compact-save {
   min-height: 48px;
   font-size: 0.96rem;
@@ -789,6 +856,16 @@ select:focus,
 
 .status[data-tone="error"] {
   color: var(--danger-ink);
+}
+
+.weight-status {
+  min-height: 18px;
+  margin: 8px 0 0;
+}
+
+.weight-status:empty {
+  min-height: 0;
+  margin: 0;
 }
 
 .comparison-list,
@@ -1075,6 +1152,45 @@ select:focus,
   margin-top: 10px;
 }
 
+.settings-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-chevron {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #edf5f2;
+  color: var(--muted);
+  font-weight: 900;
+  transition: transform 160ms ease;
+}
+
+.settings-panel[open] .settings-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.settings-body > .secondary-button {
+  justify-self: end;
+}
+
 @media (max-width: 780px) {
   .app-shell {
     padding-right: 12px;
@@ -1244,6 +1360,10 @@ select:focus,
   .entry-panel .preview-strip,
   .entry-panel .rate-note {
     display: none;
+  }
+
+  .entry-panel .rate-disclosure[open] .rate-note {
+    display: block;
   }
 
   #strengthForm .duration-field {

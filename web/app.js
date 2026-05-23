@@ -54,6 +54,7 @@ const elements = {
   entryDate: $("#entryDate"),
   bodyWeight: $("#bodyWeight"),
   saveWeightButton: $("#saveWeightButton"),
+  weightStatus: $("#weightStatus"),
   strengthForm: $("#strengthForm"),
   cardioForm: $("#cardioForm"),
   strengthName: $("#strengthName"),
@@ -218,6 +219,12 @@ function fixed(value, digits = 2) {
 function setStatus(message, tone = "normal") {
   elements.statusText.textContent = message;
   elements.statusText.dataset.tone = tone;
+}
+
+function setWeightStatus(message, tone = "normal") {
+  if (!elements.weightStatus) return;
+  elements.weightStatus.textContent = message;
+  elements.weightStatus.dataset.tone = tone;
 }
 
 function setAuthStatus(message) {
@@ -1358,19 +1365,20 @@ function saveCardio() {
 function loadWeightForDate() {
   const latest = latestWeightOn(selectedDate());
   elements.bodyWeight.value = latest?.value ? latest.value.toFixed(1) : "";
+  setWeightStatus("");
   renderAll();
 }
 
 function saveWeight() {
   const weight = numberFromInput(elements.bodyWeight);
   if (!weight) {
-    setStatus("体重を入力してください。", "error");
+    setWeightStatus("体重をkgで入力してください。", "error");
     return;
   }
   const store = readStore();
   store.weights[selectedDate()] = weight;
   writeStore(store);
-  setStatus("体重メモを保存しました。");
+  setWeightStatus("体重メモを保存しました。");
   renderAll();
 }
 
@@ -1535,7 +1543,10 @@ function bindEvents() {
   elements.googleSignInButton.addEventListener("click", signInWithGoogle);
   elements.signOutButton.addEventListener("click", signOut);
   elements.entryDate.addEventListener("change", loadWeightForDate);
-  elements.bodyWeight.addEventListener("input", renderPreviews);
+  elements.bodyWeight.addEventListener("input", () => {
+    setWeightStatus("");
+    renderPreviews();
+  });
   elements.saveWeightButton.addEventListener("click", saveWeight);
   elements.strengthName.addEventListener("change", rerenderSetRowsForExercise);
   elements.strengthDuration.addEventListener("input", renderPreviews);
