@@ -568,6 +568,24 @@ select:focus,
   font-weight: 850;
 }
 
+#strengthForm .preview-strip div {
+  display: grid;
+  gap: 3px;
+}
+
+#strengthForm .preview-strip div.hidden {
+  display: none;
+}
+
+#strengthForm .preview-strip small {
+  order: -1;
+  margin: 0;
+}
+
+#strengthForm .preview-strip.bodyweight-preview {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .rate-note,
 .auth-status {
   margin: 0;
@@ -589,11 +607,15 @@ select:focus,
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 40px;
   gap: 8px;
-  align-items: end;
-  padding: 10px;
+  align-items: center;
+  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfdfc;
+}
+
+.set-row.bodyweight-set {
+  grid-template-columns: 42px minmax(0, 1fr) 40px;
 }
 
 .set-number {
@@ -606,13 +628,75 @@ select:focus,
   font-weight: 900;
 }
 
+.set-stepper {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  min-width: 0;
+  min-height: 48px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.set-stepper button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.set-stepper button:active {
+  background: #edf5f2;
+}
+
+.stepper-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: 4px;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.stepper-value input {
+  width: min(74px, 100%);
+  min-height: 46px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  text-align: right;
+  box-shadow: none;
+}
+
+.stepper-value input:focus {
+  box-shadow: none;
+}
+
+.stepper-value span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.hidden-field {
+  display: none;
+}
+
 .remove-set-button {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 48px;
   border: 0;
   border-radius: 8px;
-  background: var(--danger-bg);
-  color: var(--danger-ink);
+  background: #f0f7f4;
+  color: var(--muted);
+  font-size: 1.18rem;
   font-weight: 900;
 }
 
@@ -620,6 +704,14 @@ select:focus,
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+
+#addSetButton {
+  min-height: 46px;
+  border: 1px dashed var(--line);
+  background: #ffffff;
+  color: var(--teal);
+  font-weight: 900;
 }
 
 .primary-button,
@@ -1154,16 +1246,55 @@ select:focus,
     display: none;
   }
 
+  #strengthForm .duration-field {
+    display: none;
+  }
+
+  #strengthForm .preview-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #strengthForm .preview-strip.bodyweight-preview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .quick-minutes {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
 
   .set-row {
-    grid-template-columns: 34px minmax(0, 1fr) 38px;
+    grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr) 34px;
+    gap: 6px;
+    padding: 6px;
   }
 
-  .set-row label:nth-of-type(2) {
-    grid-column: 2 / 3;
+  .set-row.bodyweight-set {
+    grid-template-columns: 38px minmax(0, 1fr) 34px;
+  }
+
+  .set-number,
+  .remove-set-button {
+    height: 42px;
+  }
+
+  .set-stepper {
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    min-height: 42px;
+  }
+
+  .stepper-value {
+    gap: 3px;
+  }
+
+  .stepper-value input {
+    width: min(50px, 100%);
+    min-height: 40px;
+    font-size: 0.9rem;
+  }
+
+  .stepper-value span {
+    font-size: 0.68rem;
   }
 }

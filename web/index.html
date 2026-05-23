@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=46">
+    <link rel="stylesheet" href="./styles.css?v=49">
   </head>
   <body>
     <main class="app-shell">
@@ -132,7 +132,7 @@
               <span>種目</span>
               <select id="strengthName"></select>
             </label>
-            <label>
+            <label class="duration-field">
               <span>所要時間</span>
               <input id="strengthDuration" type="number" min="1" max="240" step="1" inputmode="numeric" placeholder="自動">
             </label>
@@ -147,15 +147,15 @@
           <div class="preview-strip" aria-label="筋トレの概算">
             <div>
               <span id="strengthReps">0</span>
-              <small>合計回数</small>
+              <small>合計回</small>
             </div>
             <div>
               <span id="strengthMinutes">0</span>
-              <small>分</small>
+              <small>ボリューム</small>
             </div>
             <div>
               <span id="strengthCalories">0</span>
-              <small>消費kcal</small>
+              <small>消費</small>
             </div>
           </div>
 
@@ -217,6 +217,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=46" defer></script>
+    <script src="./app.js?v=49" defer></script>
   </body>
 </html>

@@ -211,9 +211,8 @@ function roundKcal(value) {
 }
 
 function fixed(value, digits = 2) {
-  return Number(value || 0)
-    .toFixed(digits)
-    .replace(/\.?0+$/, "");
+  const text = Number(value || 0).toFixed(digits);
+  return text.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
 function setStatus(message, tone = "normal") {
@@ -618,6 +617,10 @@ function strengthVolume(sets) {
   return sets.reduce((sum, set) => sum + set.weight * set.reps, 0);
 }
 
+function strengthUsesLoad(key = elements.strengthName.value) {
+  return key !== "pushup";
+}
+
 function firstRate(group) {
   return Object.values(group)[0] || { label: "未設定", kcalPerRep: 0, kcalPerMinute: 0 };
 }
@@ -627,11 +630,21 @@ function strengthEstimate() {
   const sets = parseSets();
   const baseRate = store.rates.strength[elements.strengthName.value] || firstRate(store.rates.strength);
   const rate = adjustedRate(baseRate);
+  const usesLoad = strengthUsesLoad();
   const manualMinutes = numberFromInput(elements.strengthDuration);
   const minutes = manualMinutes || estimatedStrengthMinutes(sets);
   const reps = totalReps(sets);
   const calories = reps * (rate.kcalPerRep || 0) + minutes * (rate.kcalPerMinute || 0);
-  return { sets, baseRate, rate, minutes, reps, calories, volume: strengthVolume(sets) };
+  return {
+    sets,
+    baseRate,
+    rate,
+    usesLoad,
+    minutes,
+    reps,
+    calories,
+    volume: usesLoad ? strengthVolume(sets) : 0,
+  };
 }
 
 function cardioEstimate() {
@@ -643,55 +656,132 @@ function cardioEstimate() {
   return { baseRate, rate, minutes, calories };
 }
 
+function formattedStepperValue(value, step) {
+  return fixed(value, step < 1 ? 1 : 0);
+}
+
+function adjustSetInput(input, delta) {
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 1000);
+  const step = Number(input.step || 1);
+  const current = Number(input.value || 0);
+  const next = Math.max(min, Math.min(max, current + delta));
+  input.value = formattedStepperValue(next, step);
+  renderPreviews();
+}
+
+function createSetStepper({ field, value, unit, min, max, step, inputMode, label }) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "set-stepper";
+
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.textContent = "−";
+  minus.setAttribute("aria-label", `${label}を減らす`);
+
+  const valueWrap = document.createElement("span");
+  valueWrap.className = "stepper-value";
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.inputMode = inputMode;
+  input.dataset.field = field;
+  input.value = value === "" ? "" : formattedStepperValue(Number(value), step);
+  input.setAttribute("aria-label", label);
+
+  const suffix = document.createElement("span");
+  suffix.textContent = unit;
+  valueWrap.append(input, suffix);
+
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.textContent = "+";
+  plus.setAttribute("aria-label", `${label}を増やす`);
+
+  minus.addEventListener("click", () => adjustSetInput(input, -step));
+  plus.addEventListener("click", () => adjustSetInput(input, step));
+  input.addEventListener("input", renderPreviews);
+
+  wrapper.append(minus, valueWrap, plus);
+  return wrapper;
+}
+
 function addSetRow(weight = "", reps = "") {
+  const usesLoad = strengthUsesLoad();
   const row = document.createElement("div");
   row.className = "set-row";
+  if (!usesLoad) row.classList.add("bodyweight-set");
 
   const number = document.createElement("div");
   number.className = "set-number";
 
-  const weightLabel = document.createElement("label");
-  const weightText = document.createElement("span");
-  const weightInput = document.createElement("input");
-  weightText.textContent = "重量 kg";
-  weightInput.type = "number";
-  weightInput.min = "0";
-  weightInput.max = "1000";
-  weightInput.step = "0.5";
-  weightInput.inputMode = "decimal";
-  weightInput.dataset.field = "weight";
-  weightInput.value = weight;
-  weightLabel.append(weightText, weightInput);
+  const weightControl = usesLoad
+    ? createSetStepper({
+        field: "weight",
+        value: weight === "" ? 60 : weight,
+        unit: "kg",
+        min: 0,
+        max: 1000,
+        step: 2.5,
+        inputMode: "decimal",
+        label: "重量",
+      })
+    : null;
 
-  const repsLabel = document.createElement("label");
-  const repsText = document.createElement("span");
-  const repsInput = document.createElement("input");
-  repsText.textContent = "回数";
-  repsInput.type = "number";
-  repsInput.min = "1";
-  repsInput.max = "500";
-  repsInput.step = "1";
-  repsInput.inputMode = "numeric";
-  repsInput.dataset.field = "reps";
-  repsInput.value = reps;
-  repsLabel.append(repsText, repsInput);
+  const hiddenWeight = document.createElement("input");
+  hiddenWeight.type = "number";
+  hiddenWeight.dataset.field = "weight";
+  hiddenWeight.value = "0";
+  hiddenWeight.className = "hidden-field";
+
+  const repsControl = createSetStepper({
+    field: "reps",
+    value: reps === "" ? 10 : reps,
+    unit: "回",
+    min: 1,
+    max: 500,
+    step: 1,
+    inputMode: "numeric",
+    label: "回数",
+  });
 
   const remove = document.createElement("button");
   remove.className = "remove-set-button";
   remove.type = "button";
-  remove.title = "削除";
-  remove.textContent = "×";
+  remove.title = "セット削除";
+  remove.textContent = "−";
   remove.addEventListener("click", () => {
     row.remove();
     renumberSets();
     renderPreviews();
   });
 
-  row.append(number, weightLabel, repsLabel, remove);
-  row.addEventListener("input", renderPreviews);
+  row.append(number);
+  if (weightControl) {
+    row.append(weightControl);
+  } else {
+    row.append(hiddenWeight);
+  }
+  row.append(repsControl, remove);
   elements.setList.append(row);
   renumberSets();
   renderPreviews();
+}
+
+function rerenderSetRowsForExercise() {
+  const nextUsesLoad = strengthUsesLoad();
+  const sets = $$(".set-row").map((row) => ({
+    weight: row.querySelector('[data-field="weight"]')?.value || "",
+    reps: row.querySelector('[data-field="reps"]')?.value || "",
+  }));
+  elements.setList.textContent = "";
+  (sets.length ? sets : [{ weight: "", reps: "" }]).forEach((set) => {
+    const weight = nextUsesLoad && Number(set.weight) <= 0 ? "" : set.weight;
+    addSetRow(weight, set.reps);
+  });
 }
 
 function renumberSets() {
@@ -712,9 +802,15 @@ function renderPreviews() {
     `${strength.rate.label}: 基準 ${fixed(strength.baseRate.kcalPerRep)} kcal/回 + ` +
     `${fixed(strength.baseRate.kcalPerMinute)} kcal/分 → ` +
     `${fixed(strength.rate.kcalPerRep)} kcal/回 + ${fixed(strength.rate.kcalPerMinute)} kcal/分 (${weightNote()})`;
-  elements.strengthReps.textContent = formatNumber(strength.reps);
-  elements.strengthMinutes.textContent = fixed(strength.minutes, 1);
-  elements.strengthCalories.textContent = formatNumber(strength.calories);
+  const strengthPreview = elements.strengthReps.closest(".preview-strip");
+  const volumeTile = elements.strengthMinutes.closest("div");
+  strengthPreview?.classList.toggle("bodyweight-preview", !strength.usesLoad);
+  volumeTile?.classList.toggle("hidden", !strength.usesLoad);
+  elements.strengthReps.textContent = `${formatNumber(strength.reps)}回`;
+  elements.strengthMinutes.textContent = `${formatNumber(strength.volume)}kg`;
+  elements.strengthMinutes.nextElementSibling.textContent = "ボリューム";
+  elements.strengthCalories.textContent = `${formatNumber(strength.calories)}kcal`;
+  elements.strengthCalories.nextElementSibling.textContent = "消費";
   elements.strengthSaveCalories.textContent = `${formatNumber(strength.calories)} kcal`;
 
   const cardio = cardioEstimate();
@@ -1441,7 +1537,7 @@ function bindEvents() {
   elements.entryDate.addEventListener("change", loadWeightForDate);
   elements.bodyWeight.addEventListener("input", renderPreviews);
   elements.saveWeightButton.addEventListener("click", saveWeight);
-  elements.strengthName.addEventListener("change", renderPreviews);
+  elements.strengthName.addEventListener("change", rerenderSetRowsForExercise);
   elements.strengthDuration.addEventListener("input", renderPreviews);
   elements.cardioName.addEventListener("change", renderPreviews);
   elements.cardioMinutes.addEventListener("input", renderPreviews);
