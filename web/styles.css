@@ -440,6 +440,18 @@ h3 {
   gap: 10px;
 }
 
+.exercise-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  min-width: 0;
+}
+
+.copy-button {
+  min-width: 104px;
+}
+
 .form-grid label,
 .stepper-field,
 .subtle-weight label,
@@ -533,26 +545,34 @@ select:focus,
 .preview-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #edf5f2;
 }
 
 .preview-strip div {
   min-width: 0;
-  padding: 12px 10px;
-  border-radius: 8px;
-  background: #f0f7f4;
+  padding: 4px 12px;
+  border-left: 1px solid rgba(110, 129, 124, 0.18);
+  background: transparent;
+}
+
+.preview-strip div:first-child {
+  border-left: 0;
 }
 
 .preview-strip div:nth-child(2) {
-  background: #edf5f2;
+  background: transparent;
 }
 
 .preview-strip div:nth-child(3) {
-  background: #edf5f2;
+  background: transparent;
 }
 
 .preview-strip div.preview-output {
-  background: var(--teal-dark);
+  background: transparent;
 }
 
 .preview-strip span {
@@ -574,7 +594,7 @@ select:focus,
 
 .preview-strip .preview-output span,
 .preview-strip .preview-output small {
-  color: #ffffff;
+  color: #0f7668;
 }
 
 #strengthForm .preview-strip div {

@@ -62,7 +62,8 @@ const elements = {
   strengthRateNote: $("#strengthRateNote"),
   setList: $("#setList"),
   addSetButton: $("#addSetButton"),
-  copyLastSetButton: $("#copyLastSetButton"),
+  copyLastCardioButton: $("#copyLastCardioButton"),
+  copyLastStrengthButton: $("#copyLastStrengthButton"),
   strengthReps: $("#strengthReps"),
   strengthMinutes: $("#strengthMinutes"),
   strengthCalories: $("#strengthCalories"),
@@ -82,7 +83,6 @@ const elements = {
   comparisonList: $("#comparisonList"),
   historyTabs: $("#historyTabs"),
   historyList: $("#historyList"),
-  seedButton: $("#seedButton"),
   exportButton: $("#exportButton"),
 };
 
@@ -1382,126 +1382,40 @@ function saveWeight() {
   renderAll();
 }
 
+function previousWorkoutFor(mode, key) {
+  const date = selectedDate();
+  return readStore()
+    .workouts.filter((workout) => workout.mode === mode && workout.key === key && workout.date < date)
+    .sort((a, b) => {
+      const dateOrder = (b.date || "").localeCompare(a.date || "");
+      if (dateOrder) return dateOrder;
+      return (b.createdAt || "").localeCompare(a.createdAt || "");
+    })[0];
+}
+
 function copyLastStrengthSet() {
-  const store = readStore();
   const key = elements.strengthName.value;
-  const last = store.workouts
-    .filter((workout) => workout.mode === "strength" && workout.key === key)
-    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+  const last = previousWorkoutFor("strength", key);
   if (!last) {
-    setStatus("コピーできる前回セットがありません。");
+    setStatus("選択中の日付より前に、同じ筋トレ種目の記録がありません。");
     return;
   }
   elements.setList.textContent = "";
   last.sets.forEach((set) => addSetRow(set.weight, set.reps));
   elements.strengthDuration.value = last.minutes;
-  setStatus(`${last.name}の前回セットをコピーしました。`);
+  setStatus(`${last.date}の${last.name}をコピーしました。`);
 }
 
 function copyLastCardio() {
-  const store = readStore();
   const key = elements.cardioName.value;
-  const last = store.workouts
-    .filter((workout) => workout.mode === "cardio" && workout.key === key)
-    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+  const last = previousWorkoutFor("cardio", key);
   if (!last) {
-    setStatus("コピーできる前回の有酸素記録がありません。");
+    setStatus("選択中の日付より前に、同じ有酸素種目の記録がありません。");
     return;
   }
   elements.cardioMinutes.value = last.minutes || "";
-  setStatus(`${last.name}の前回分数をコピーしました。`);
+  setStatus(`${last.date}の${last.name}をコピーしました。`);
   renderPreviews();
-}
-
-function copyLastWorkout() {
-  const activeMode = $(".mode-button.active")?.dataset.mode;
-  if (activeMode === "strength") {
-    copyLastStrengthSet();
-    return;
-  }
-  copyLastCardio();
-}
-
-function seedSamples() {
-  const today = localDate();
-  const store = readStore();
-  const samples = [
-    {
-      date: addDays(today, -6),
-      mode: "strength",
-      key: "latPulldown",
-      sets: [
-        { weight: 35, reps: 12 },
-        { weight: 40, reps: 10 },
-        { weight: 40, reps: 10 },
-      ],
-    },
-    { date: addDays(today, -5), mode: "cardio", key: "walking", minutes: 35 },
-    {
-      date: addDays(today, -3),
-      mode: "strength",
-      key: "chestPress",
-      sets: [
-        { weight: 35, reps: 12 },
-        { weight: 40, reps: 10 },
-        { weight: 40, reps: 8 },
-      ],
-    },
-    { date: addDays(today, -2), mode: "cardio", key: "running", minutes: 22 },
-    {
-      date: addDays(today, -1),
-      mode: "strength",
-      key: "legPress",
-      sets: [
-        { weight: 80, reps: 12 },
-        { weight: 90, reps: 10 },
-        { weight: 90, reps: 10 },
-      ],
-    },
-    { date: today, mode: "cardio", key: "step", minutes: 15 },
-  ];
-
-  samples.forEach((sample) => {
-    if (sample.mode === "cardio") {
-      const baseRate = store.rates.cardio[sample.key];
-      const rate = { ...baseRate, weightFactor: 1, bodyWeight: referenceWeightKg };
-      store.workouts.push({
-        id: uuid(),
-        ...sample,
-        name: rate.label,
-        calories: sample.minutes * rate.kcalPerMinute,
-        baseRate: clone(baseRate),
-        effectiveRate: clone(rate),
-        referenceWeightKg,
-        bodyWeight: referenceWeightKg,
-        createdAt: new Date().toISOString(),
-      });
-      return;
-    }
-
-    const baseRate = store.rates.strength[sample.key];
-    const rate = { ...baseRate, weightFactor: 1, bodyWeight: referenceWeightKg };
-    const minutes = estimatedStrengthMinutes(sample.sets);
-    const reps = totalReps(sample.sets);
-    store.workouts.push({
-      id: uuid(),
-      ...sample,
-      name: rate.label,
-      reps,
-      minutes,
-      volume: strengthVolume(sample.sets),
-      calories: reps * rate.kcalPerRep + minutes * rate.kcalPerMinute,
-      baseRate: clone(baseRate),
-      effectiveRate: clone(rate),
-      referenceWeightKg,
-      bodyWeight: referenceWeightKg,
-      createdAt: new Date().toISOString(),
-    });
-  });
-  writeStore(store);
-  selectedHistoryDate = today;
-  setStatus("サンプルを追加しました。");
-  renderAll();
 }
 
 function exportJson() {
@@ -1558,9 +1472,9 @@ function bindEvents() {
     button.addEventListener("click", () => setCardioMinutes(Number(button.dataset.cardioMinutes)));
   });
   elements.addSetButton.addEventListener("click", () => addSetRow());
-  elements.copyLastSetButton.addEventListener("click", copyLastWorkout);
+  elements.copyLastCardioButton.addEventListener("click", copyLastCardio);
+  elements.copyLastStrengthButton.addEventListener("click", copyLastStrengthSet);
   elements.resetRatesButton.addEventListener("click", resetRates);
-  elements.seedButton.addEventListener("click", seedSamples);
   elements.exportButton.addEventListener("click", exportJson);
 
   elements.strengthForm.addEventListener("submit", (event) => {

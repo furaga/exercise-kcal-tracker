@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=51">
+    <link rel="stylesheet" href="./styles.css?v=52">
   </head>
   <body>
     <main class="app-shell">
@@ -73,7 +73,6 @@
             <h2 id="entryTitle">運動を入力</h2>
           </div>
           <div class="entry-heading-actions">
-            <button class="secondary-button compact ghost" id="copyLastSetButton" type="button">前回コピー</button>
             <input class="date-input" id="entryDate" type="date" aria-label="記録日">
           </div>
         </div>
@@ -85,10 +84,13 @@
 
         <form id="cardioForm" class="exercise-form" aria-labelledby="cardioTab">
           <div class="form-grid cardio-grid">
-            <label>
-              <span>種目</span>
-              <select id="cardioName"></select>
-            </label>
+            <div class="exercise-select-row">
+              <label>
+                <span>種目</span>
+                <select id="cardioName"></select>
+              </label>
+              <button class="secondary-button compact ghost copy-button" id="copyLastCardioButton" type="button" title="選択中の日付より前の同じ種目をコピー">前回コピー</button>
+            </div>
             <div class="stepper-field">
               <span>分数</span>
               <div class="number-stepper">
@@ -130,10 +132,13 @@
 
         <form id="strengthForm" class="exercise-form hidden" aria-labelledby="strengthTab">
           <div class="form-grid">
-            <label>
-              <span>種目</span>
-              <select id="strengthName"></select>
-            </label>
+            <div class="exercise-select-row">
+              <label>
+                <span>種目</span>
+                <select id="strengthName"></select>
+              </label>
+              <button class="secondary-button compact ghost copy-button" id="copyLastStrengthButton" type="button" title="選択中の日付より前の同じ種目をコピー">前回コピー</button>
+            </div>
             <label class="duration-field">
               <span>所要時間</span>
               <input id="strengthDuration" type="number" min="1" max="240" step="1" inputmode="numeric" placeholder="自動">
@@ -190,7 +195,6 @@
             <h2 id="historyTitle">運動履歴</h2>
           </div>
           <div class="history-actions">
-            <button class="secondary-button compact" id="seedButton" type="button">サンプル</button>
             <button class="secondary-button compact" id="exportButton" type="button">Export</button>
           </div>
         </div>
@@ -229,6 +233,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=51" defer></script>
+    <script src="./app.js?v=52" defer></script>
   </body>
 </html>
