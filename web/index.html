@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=33">
+    <link rel="stylesheet" href="./styles.css?v=34">
   </head>
   <body>
     <main class="app-shell">
@@ -32,6 +32,7 @@
           <button class="secondary-button compact hidden" id="signOutButton" type="button">ログアウト</button>
         </div>
         <div class="auth-row" id="signedOutControls">
+          <button class="google-button" id="googleSignInButton" type="button">Googleでログイン</button>
           <label>
             <span>メールアドレス</span>
             <input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com">
@@ -197,6 +198,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=33" defer></script>
+    <script src="./app.js?v=34" defer></script>
   </body>
 </html>

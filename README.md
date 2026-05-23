@@ -12,9 +12,25 @@ iPhoneから触れる、ローカルファーストの運動ログPWA試作で�
 - これまで、今日、今週、今月の概算消費カロリー
 - 日ごとの消費カロリー、実施種目一覧、運動履歴
 - Supabaseログイン時のクラウド保存
+- Googleログインまたはメールリンクログイン
 
 未ログイン時のデータはブラウザの `localStorage` に保存されます。ログイン時は
 Supabaseに同期します。
+
+## Supabase Auth
+
+Googleログインを使うには、Supabase Dashboardで Google provider を有効化します。
+
+- Supabase: Authentication > Providers > Google を有効化
+- Google Cloud: OAuth Client ID を Web application として作成
+- Google Cloudの Authorized JavaScript origins:
+  - `https://furaga.github.io`
+  - `http://localhost:5173`
+- Google Cloudの Authorized redirect URIs:
+  - Supabaseの Google provider 画面に表示される callback URL
+- Supabase: Authentication > URL Configuration
+  - Site URL: `https://furaga.github.io/exercise-kcal-tracker/`
+  - Redirect URLs: `https://furaga.github.io/exercise-kcal-tracker/`, `http://localhost:5173`, `http://localhost:5173/`
 
 ## Local PWA prototype
 

@@ -219,6 +219,7 @@ h3 {
 .date-input,
 .primary-button,
 .secondary-button,
+.google-button,
 .mode-button {
   min-height: 40px;
   border-radius: 8px;
@@ -247,7 +248,7 @@ h3 {
 
 .auth-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 170px;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 170px;
   gap: 8px;
   align-items: end;
   margin-top: 14px;
@@ -405,7 +406,8 @@ select:focus,
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.google-button {
   border: 0;
   padding: 0 14px;
 }
@@ -418,6 +420,18 @@ select:focus,
 .secondary-button {
   background: #e9eef0;
   color: var(--ink);
+}
+
+.google-button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.google-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .secondary-button.compact {

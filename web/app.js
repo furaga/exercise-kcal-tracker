@@ -40,6 +40,7 @@ const elements = {
   authStatus: $("#authStatus"),
   emailInput: $("#emailInput"),
   signInButton: $("#signInButton"),
+  googleSignInButton: $("#googleSignInButton"),
   signOutButton: $("#signOutButton"),
   signedOutControls: $("#signedOutControls"),
   todayCalories: $("#todayCalories"),
@@ -245,6 +246,29 @@ async function signInWithEmail() {
     return;
   }
   setAuthStatus("ログインリンクを送信しました。メールを確認してください。");
+}
+
+async function signInWithGoogle() {
+  if (!supabaseClient) {
+    setAuthStatus("Supabaseライブラリを読み込めませんでした。");
+    return;
+  }
+
+  elements.googleSignInButton.disabled = true;
+  setAuthStatus("Googleログインへ移動します...");
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: redirectUrl(),
+      queryParams: {
+        prompt: "select_account",
+      },
+    },
+  });
+  if (error) {
+    elements.googleSignInButton.disabled = false;
+    setAuthStatus(`Googleログインに失敗: ${error.message}`);
+  }
 }
 
 async function signOut() {
@@ -1092,6 +1116,7 @@ $$(".mode-button").forEach((button) => {
 });
 
 elements.signInButton.addEventListener("click", signInWithEmail);
+elements.googleSignInButton.addEventListener("click", signInWithGoogle);
 elements.signOutButton.addEventListener("click", signOut);
 elements.emailInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
