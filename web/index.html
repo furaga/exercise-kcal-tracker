@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f766e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Training Log">
+    <title>Training Log Prototype</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="stylesheet" href="./styles.css?v=31">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local PWA Prototype</p>
+          <h1>Training Log</h1>
+        </div>
+        <div class="date-badge" id="todayBadge"></div>
+      </header>
+
+      <section class="summary-band" aria-labelledby="summaryTitle">
+        <div class="total-block">
+          <p class="section-kicker">Total</p>
+          <h2 id="summaryTitle">これまでの消費カロリー</h2>
+          <strong id="allCalories">0</strong>
+          <span>kcal</span>
+        </div>
+        <div class="summary-grid" aria-label="消費カロリー概要">
+          <div>
+            <span id="todayCalories">0</span>
+            <small>今日の消費カロリー</small>
+          </div>
+          <div>
+            <span id="weekCalories">0</span>
+            <small>今週の消費カロリー</small>
+          </div>
+          <div>
+            <span id="monthCalories">0</span>
+            <small>今月の消費カロリー</small>
+          </div>
+          <div>
+            <span id="loggedDays">0</span>
+            <small>記録した日数</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel entry-panel" aria-labelledby="entryTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Log</p>
+            <h2 id="entryTitle">運動を入力</h2>
+          </div>
+          <input class="date-input" id="entryDate" type="date" aria-label="記録日">
+        </div>
+
+        <div class="subtle-weight">
+          <label>
+            <span>体重メモ</span>
+            <input id="bodyWeight" type="number" min="20" max="250" step="0.1" inputmode="decimal" placeholder="任意">
+          </label>
+          <button class="secondary-button compact" id="saveWeightButton" type="button">保存</button>
+        </div>
+
+        <div class="mode-row" role="tablist" aria-label="運動タイプ">
+          <button class="mode-button active" id="strengthTab" type="button" role="tab" aria-selected="true" data-mode="strength">筋トレ</button>
+          <button class="mode-button" id="cardioTab" type="button" role="tab" aria-selected="false" data-mode="cardio">有酸素</button>
+        </div>
+
+        <form id="strengthForm" class="exercise-form" aria-labelledby="strengthTab">
+          <div class="form-grid">
+            <label>
+              <span>種目</span>
+              <select id="strengthName"></select>
+            </label>
+            <label>
+              <span>所要時間</span>
+              <input id="strengthDuration" type="number" min="1" max="240" step="1" inputmode="numeric" placeholder="自動">
+            </label>
+          </div>
+
+          <div class="rate-note" id="strengthRateNote"></div>
+          <div class="set-list" id="setList" aria-label="セット一覧"></div>
+
+          <div class="set-actions">
+            <button class="secondary-button" id="addSetButton" type="button">セット追加</button>
+            <button class="secondary-button" id="copyLastSetButton" type="button">前回コピー</button>
+          </div>
+
+          <div class="preview-strip" aria-label="筋トレ概算">
+            <div>
+              <span id="strengthReps">0</span>
+              <small>合計回数</small>
+            </div>
+            <div>
+              <span id="strengthMinutes">0</span>
+              <small>分</small>
+            </div>
+            <div>
+              <span id="strengthCalories">0</span>
+              <small>消費kcal</small>
+            </div>
+          </div>
+
+          <button class="primary-button" type="submit">筋トレを保存</button>
+        </form>
+
+        <form id="cardioForm" class="exercise-form hidden" aria-labelledby="cardioTab">
+          <div class="form-grid">
+            <label>
+              <span>種目</span>
+              <select id="cardioName"></select>
+            </label>
+            <label>
+              <span>分数</span>
+              <input id="cardioMinutes" type="number" min="1" max="600" step="1" inputmode="numeric" placeholder="30">
+            </label>
+          </div>
+
+          <div class="rate-note" id="cardioRateNote"></div>
+          <div class="preview-strip" aria-label="有酸素概算">
+            <div>
+              <span id="cardioRate">0</span>
+              <small>kcal/分</small>
+            </div>
+            <div>
+              <span id="cardioPreviewMinutes">0</span>
+              <small>分</small>
+            </div>
+            <div>
+              <span id="cardioCalories">0</span>
+              <small>消費kcal</small>
+            </div>
+          </div>
+
+          <button class="primary-button" type="submit">有酸素を保存</button>
+        </form>
+
+        <p class="status" id="statusText" role="status"></p>
+      </section>
+
+      <section class="panel settings-panel" aria-labelledby="settingsTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Rates</p>
+            <h2 id="settingsTitle">消費カロリー係数</h2>
+          </div>
+          <button class="secondary-button compact" id="resetRatesButton" type="button">初期値</button>
+        </div>
+        <div class="rate-editor" id="rateEditor"></div>
+      </section>
+
+      <section class="panel daily-panel" aria-labelledby="dailyTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Daily</p>
+            <h2 id="dailyTitle">日ごとの消費カロリーと種目</h2>
+          </div>
+          <button class="secondary-button compact" id="seedButton" type="button">サンプル</button>
+        </div>
+        <div class="daily-list" id="dailyList"></div>
+      </section>
+
+      <section class="panel history-panel" aria-labelledby="historyTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">History</p>
+            <h2 id="historyTitle">運動履歴</h2>
+          </div>
+          <button class="secondary-button compact" id="exportButton" type="button">Export</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+    </main>
+
+    <script src="./app.js?v=31" defer></script>
+  </body>
+</html>
