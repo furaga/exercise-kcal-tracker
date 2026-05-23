@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=40">
+    <link rel="stylesheet" href="./styles.css?v=41">
   </head>
   <body>
     <main class="app-shell">
@@ -22,6 +22,7 @@
         </div>
         <div class="top-actions">
           <div class="date-badge" id="todayBadge" aria-label="今日の日付"></div>
+          <div class="account-chip hidden" id="authIdentity" title="ログイン中のアカウント"></div>
           <button class="login-button" id="googleSignInButton" type="button">ログイン</button>
           <button class="login-button hidden" id="signOutButton" type="button">ログアウト</button>
         </div>
@@ -207,6 +208,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=40" defer></script>
+    <script src="./app.js?v=41" defer></script>
   </body>
 </html>

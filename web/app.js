@@ -43,6 +43,7 @@ const elements = {
   weekProgress: $("#weekProgress"),
   weekChart: $("#weekChart"),
   authStatus: $("#authStatus"),
+  authIdentity: $("#authIdentity"),
   googleSignInButton: $("#googleSignInButton"),
   signOutButton: $("#signOutButton"),
   todayCalories: $("#todayCalories"),
@@ -246,8 +247,14 @@ function latestWeightOn(dateKey = selectedDate()) {
 
 function updateAuthUi() {
   const signedIn = Boolean(currentUser);
+  const identity = currentUser?.email || currentUser?.user_metadata?.full_name || "ログイン中";
   elements.googleSignInButton?.classList.toggle("hidden", signedIn);
   elements.signOutButton?.classList.toggle("hidden", !signedIn);
+  elements.authIdentity?.classList.toggle("hidden", !signedIn);
+  if (elements.authIdentity) {
+    elements.authIdentity.textContent = signedIn ? identity : "";
+    elements.authIdentity.title = signedIn ? `ログイン中: ${identity}` : "";
+  }
   if (elements.googleSignInButton) {
     elements.googleSignInButton.disabled = false;
     elements.googleSignInButton.textContent = "ログイン";
