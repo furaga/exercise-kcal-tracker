@@ -20,6 +20,8 @@ let currentUser = null;
 let cloudReady = false;
 let cloudSyncTimer = null;
 let suppressCloudSync = false;
+let selectedHistoryDate = null;
+let editingWorkoutId = null;
 
 const defaultStrengthRates = {
   latPulldown: { label: "ラットプルダウン", kcalPerRep: 0.32, kcalPerMinute: 1.6 },
@@ -76,7 +78,8 @@ const elements = {
   statusText: $("#statusText"),
   rateEditor: $("#rateEditor"),
   resetRatesButton: $("#resetRatesButton"),
-  dailyList: $("#dailyList"),
+  comparisonList: $("#comparisonList"),
+  historyTabs: $("#historyTabs"),
   historyList: $("#historyList"),
   seedButton: $("#seedButton"),
   exportButton: $("#exportButton"),
@@ -810,123 +813,280 @@ function renderSummary() {
   renderWeekChart(store, weekStart);
 }
 
-function renderDailyList() {
+function workoutMeasure(workout) {
+  if (workout.mode === "strength") {
+    return {
+      value: Number(workout.volume || strengthVolume(workout.sets || []) || 0),
+      unit: "kg",
+      label: "負荷量",
+    };
+  }
+  return {
+    value: Number(workout.minutes || 0),
+    unit: "分",
+    label: "時間",
+  };
+}
+
+function aggregateExercise(workouts) {
+  const map = new Map();
+  workouts.forEach((workout) => {
+    const key = `${workout.mode}:${workout.key}`;
+    const measure = workoutMeasure(workout);
+    const item = map.get(key) || {
+      key,
+      mode: workout.mode,
+      name: workout.name,
+      unit: measure.unit,
+      value: 0,
+      calories: 0,
+    };
+    item.value += measure.value;
+    item.calories += workout.calories || 0;
+    map.set(key, item);
+  });
+  return map;
+}
+
+function signedValue(value, unit) {
+  if (!value) return `± 0${unit}`;
+  const sign = value > 0 ? "▲" : "▼";
+  return `${sign} ${formatNumber(Math.abs(value))}${unit}`;
+}
+
+function renderComparisonList() {
   const store = readStore();
+  const today = localDate();
+  const weekStart = startOfWeek(today);
+  const weekEnd = addDays(weekStart, 6);
+  const previousStart = addDays(weekStart, -7);
+  const previousEnd = addDays(weekStart, -1);
+  const current = aggregateExercise(workoutsBetween(weekStart, weekEnd, store));
+  const previous = aggregateExercise(workoutsBetween(previousStart, previousEnd, store));
+  const keys = Array.from(new Set([...current.keys(), ...previous.keys()]));
+
+  elements.comparisonList.textContent = "";
+  if (!keys.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "今週または先週の記録があると、種目ごとの差分がここに表示されます。";
+    elements.comparisonList.append(empty);
+    return;
+  }
+
+  const items = keys
+    .map((key) => {
+      const now = current.get(key);
+      const before = previous.get(key);
+      const unit = now?.unit || before?.unit || "";
+      const currentValue = now?.value || 0;
+      const previousValue = before?.value || 0;
+      const change = currentValue - previousValue;
+      const percent = previousValue ? Math.round((change / previousValue) * 100) : currentValue ? 100 : 0;
+      return {
+        key,
+        mode: now?.mode || before?.mode,
+        name: now?.name || before?.name,
+        unit,
+        currentValue,
+        previousValue,
+        change,
+        percent,
+      };
+    })
+    .sort((a, b) => b.currentValue + b.previousValue - (a.currentValue + a.previousValue))
+    .slice(0, 4);
+
+  const maxValue = Math.max(1, ...items.flatMap((item) => [item.currentValue, item.previousValue]));
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "comparison-item";
+
+    const head = document.createElement("div");
+    head.className = "comparison-head";
+    const icon = document.createElement("span");
+    icon.className = `exercise-icon ${item.mode === "strength" ? "strength" : "cardio"}`;
+    icon.textContent = item.mode === "strength" ? "↔" : "⌁";
+    const name = document.createElement("strong");
+    name.textContent = item.name;
+    const delta = document.createElement("span");
+    delta.className = item.change < 0 ? "comparison-delta down" : "comparison-delta";
+    delta.textContent = signedValue(item.change, item.unit);
+    head.append(icon, name, delta);
+
+    const bars = document.createElement("div");
+    bars.className = "comparison-bars";
+    const currentBar = document.createElement("span");
+    currentBar.className = "bar-fill";
+    currentBar.style.setProperty("--bar", `${Math.max(4, (item.currentValue / maxValue) * 100)}%`);
+    const previousBar = document.createElement("span");
+    previousBar.className = "bar-fill previous";
+    previousBar.style.setProperty("--bar", `${Math.max(4, (item.previousValue / maxValue) * 100)}%`);
+    bars.append(currentBar, previousBar);
+
+    const foot = document.createElement("div");
+    foot.className = "comparison-foot";
+    const percent = item.previousValue ? `${item.percent > 0 ? "+" : ""}${item.percent}%` : "new";
+    foot.textContent = `${formatNumber(item.currentValue)}${item.unit} / ${formatNumber(item.previousValue)}${item.unit} ・ ${percent}`;
+
+    card.append(head, bars, foot);
+    elements.comparisonList.append(card);
+  });
+}
+
+function workoutDetail(workout) {
+  if (workout.mode === "cardio") {
+    return `${workout.minutes}分`;
+  }
+  const sets = (workout.sets || []).map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
+  return `${sets || formatNumber(workout.reps)} / ${fixed(workout.minutes, 1)}分`;
+}
+
+function groupedWorkoutsByDate(store = readStore()) {
   const byDate = new Map();
   store.workouts.forEach((workout) => {
     const group = byDate.get(workout.date) || [];
     group.push(workout);
     byDate.set(workout.date, group);
   });
+  return byDate;
+}
 
-  const dates = Array.from(byDate.keys()).sort().reverse();
-  const maxCalories = Math.max(1, ...dates.map((date) => sumCalories(byDate.get(date))));
-  elements.dailyList.textContent = "";
-
-  if (!dates.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    empty.textContent = "まだ記録はありません。種目を保存すると日別の消費カロリーがここに表示されます。";
-    elements.dailyList.append(empty);
-    return;
-  }
-
-  dates.slice(0, 30).forEach((date) => {
-    const workouts = byDate.get(date);
-    const calories = sumCalories(workouts);
-    const previousCalories = sumCalories(workoutsOn(addDays(date, -7), store));
-    const item = document.createElement("article");
-    item.className = "daily-item";
-
-    const head = document.createElement("div");
-    head.className = "daily-head";
-    const dateLabel = document.createElement("strong");
-    dateLabel.textContent = formatShortDate(dateFromKey(date));
+function renderHistoryTabs(dates, byDate) {
+  elements.historyTabs.textContent = "";
+  dates.slice(0, 14).forEach((date) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "history-tab";
+    button.classList.toggle("active", date === selectedHistoryDate);
+    const dateObj = dateFromKey(date);
+    const day = document.createElement("small");
+    day.textContent = date === localDate() ? "今日" : weekdayLabels[dateObj.getDay()];
+    const main = document.createElement("strong");
+    main.textContent = formatShortDate(dateObj);
     const kcal = document.createElement("span");
-    kcal.textContent = `${formatNumber(calories)} kcal`;
-    head.append(dateLabel, kcal);
-
-    const meta = document.createElement("p");
-    meta.className = "daily-meta";
-    meta.textContent = previousCalories
-      ? `先週同日 ${formatNumber(previousCalories)} kcal / ${calories >= previousCalories ? "+" : ""}${formatNumber(calories - previousCalories)} kcal`
-      : "先週同日の記録なし";
-
-    const track = document.createElement("div");
-    track.className = "bar-track";
-    const fill = document.createElement("span");
-    fill.className = "bar-fill";
-    fill.style.setProperty("--bar", `${(calories / maxCalories) * 100}%`);
-    track.append(fill);
-
-    const chips = document.createElement("div");
-    chips.className = "exercise-chips";
-    workouts.forEach((workout) => {
-      const chip = document.createElement("span");
-      chip.textContent = workout.name;
-      chips.append(chip);
+    const calories = sumCalories(byDate.get(date) || []);
+    kcal.textContent = calories ? `${formatNumber(calories)} kcal` : "休";
+    button.append(day, main, kcal);
+    button.addEventListener("click", () => {
+      selectedHistoryDate = date;
+      renderHistory();
     });
-
-    item.append(head, meta, track, chips);
-    elements.dailyList.append(item);
+    elements.historyTabs.append(button);
   });
 }
 
-function workoutDetail(workout) {
+function loadWorkoutForEdit(workout) {
+  editingWorkoutId = workout.id;
+  elements.entryDate.value = workout.date;
+  if (workout.bodyWeight) elements.bodyWeight.value = fixed(workout.bodyWeight, 1);
+
   if (workout.mode === "cardio") {
-    return `${workout.minutes}分 / ${fixed(workout.effectiveRate.kcalPerMinute)} kcal/分 / ${formatNumber(workout.calories)} kcal`;
+    setMode("cardio");
+    elements.cardioName.value = workout.key;
+    elements.cardioMinutes.value = workout.minutes || "";
+  } else {
+    setMode("strength");
+    elements.strengthName.value = workout.key;
+    elements.strengthDuration.value = workout.minutes || "";
+    elements.setList.textContent = "";
+    (workout.sets || []).forEach((set) => addSetRow(set.weight, set.reps));
+    if (!(workout.sets || []).length) addSetRow();
   }
-  const sets = (workout.sets || []).map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
-  return `${sets} / ${formatNumber(workout.reps)}回 / ${fixed(workout.minutes, 1)}分 / ` +
-    `${fixed(workout.effectiveRate.kcalPerRep)} kcal/回 + ${fixed(workout.effectiveRate.kcalPerMinute)} kcal/分 / ` +
-    `${formatNumber(workout.calories)} kcal`;
+
+  renderPreviews();
+  setStatus(`${workout.name}を編集中です。保存すると履歴を更新します。`);
+  document.querySelector(".entry-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function deleteWorkout(workout) {
+  const store = readStore();
+  store.workouts = store.workouts.filter((item) => item.id !== workout.id);
+  if (editingWorkoutId === workout.id) editingWorkoutId = null;
+  writeStore(store);
+  renderAll();
 }
 
 function renderHistory() {
-  const workouts = readStore().workouts.slice().sort((a, b) => {
-    if (a.date === b.date) return (b.createdAt || "").localeCompare(a.createdAt || "");
-    return b.date.localeCompare(a.date);
-  });
+  const store = readStore();
+  const byDate = groupedWorkoutsByDate(store);
+  const dates = Array.from(byDate.keys()).sort().reverse();
 
   elements.historyList.textContent = "";
-  if (!workouts.length) {
+  if (!dates.length) {
+    elements.historyTabs.textContent = "";
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "まだ運動履歴はありません。筋トレか有酸素を保存するとここに並びます。";
+    empty.textContent = "まだ運動履歴はありません。保存すると日付ごとの履歴がここに並びます。";
     elements.historyList.append(empty);
     return;
   }
 
-  workouts.slice(0, 50).forEach((workout) => {
+  if (!selectedHistoryDate || !byDate.has(selectedHistoryDate)) {
+    selectedHistoryDate = dates[0];
+  }
+  renderHistoryTabs(dates, byDate);
+
+  const workouts = (byDate.get(selectedHistoryDate) || []).slice().sort((a, b) =>
+    (b.createdAt || "").localeCompare(a.createdAt || ""),
+  );
+  const calories = sumCalories(workouts);
+
+  const summary = document.createElement("div");
+  summary.className = "history-day-summary";
+  const dateLabel = document.createElement("strong");
+  dateLabel.textContent = `${formatShortDate(dateFromKey(selectedHistoryDate))}(${weekdayLabels[dateFromKey(selectedHistoryDate).getDay()]})`;
+  const count = document.createElement("span");
+  count.textContent = `${workouts.length}件・${formatNumber(calories)} kcal`;
+  summary.append(dateLabel, count);
+  elements.historyList.append(summary);
+
+  const track = document.createElement("div");
+  track.className = "bar-track";
+  const fill = document.createElement("span");
+  fill.className = "bar-fill";
+  const maxDayCalories = Math.max(1, ...dates.map((date) => sumCalories(byDate.get(date))));
+  fill.style.setProperty("--bar", `${(calories / maxDayCalories) * 100}%`);
+  track.append(fill);
+  elements.historyList.append(track);
+
+  workouts.forEach((workout) => {
     const item = document.createElement("article");
     item.className = "history-item";
+
+    const icon = document.createElement("span");
+    icon.className = `exercise-icon ${workout.mode === "strength" ? "strength" : "cardio"}`;
+    icon.textContent = workout.mode === "strength" ? "↔" : "⌁";
 
     const content = document.createElement("div");
     const title = document.createElement("p");
     title.className = "history-title";
     title.textContent = workout.name;
 
-    const meta = document.createElement("span");
-    meta.textContent = `${formatShortDate(dateFromKey(workout.date))} ${workout.mode === "strength" ? "筋トレ" : "有酸素"}`;
-    title.append(meta);
-
     const detail = document.createElement("p");
     detail.className = "history-detail";
     detail.textContent = workoutDetail(workout);
+    content.append(title, detail);
+
+    const kcal = document.createElement("span");
+    kcal.className = "history-kcal";
+    kcal.textContent = `${formatNumber(workout.calories)} kcal`;
+
+    const edit = document.createElement("button");
+    edit.className = "icon-button";
+    edit.type = "button";
+    edit.title = "編集";
+    edit.textContent = "編集";
+    edit.addEventListener("click", () => loadWorkoutForEdit(workout));
 
     const remove = document.createElement("button");
+    remove.className = "icon-button danger";
     remove.type = "button";
     remove.title = "削除";
-    remove.textContent = "×";
-    remove.addEventListener("click", () => {
-      const store = readStore();
-      store.workouts = store.workouts.filter((item) => item.id !== workout.id);
-      writeStore(store);
-      renderAll();
-    });
+    remove.textContent = "削除";
+    remove.addEventListener("click", () => deleteWorkout(workout));
 
-    content.append(title, detail);
-    item.append(content, remove);
+    item.append(icon, content, kcal, edit, remove);
     elements.historyList.append(item);
   });
 }
@@ -998,7 +1158,7 @@ function rateInput(type, key, field, labelText, value) {
 function renderAll() {
   renderPreviews();
   renderSummary();
-  renderDailyList();
+  renderComparisonList();
   renderHistory();
 }
 
@@ -1025,8 +1185,14 @@ function saveStrength() {
   const date = selectedDate();
   const weight = numberFromInput(elements.bodyWeight);
   if (weight) store.weights[date] = weight;
+  const existing = editingWorkoutId
+    ? store.workouts.find((workout) => workout.id === editingWorkoutId)
+    : null;
+  if (editingWorkoutId) {
+    store.workouts = store.workouts.filter((workout) => workout.id !== editingWorkoutId);
+  }
   store.workouts.push({
-    id: uuid(),
+    id: editingWorkoutId || uuid(),
     date,
     mode: "strength",
     key: elements.strengthName.value,
@@ -1040,10 +1206,12 @@ function saveStrength() {
     effectiveRate: clone(estimate.rate),
     referenceWeightKg,
     bodyWeight: weight || activeBodyWeight(),
-    createdAt: new Date().toISOString(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
   });
   writeStore(store);
-  setStatus(`${estimate.rate.label}を保存しました。`);
+  selectedHistoryDate = date;
+  setStatus(`${estimate.rate.label}を${existing ? "更新" : "保存"}しました。`);
+  editingWorkoutId = null;
   elements.setList.textContent = "";
   elements.strengthDuration.value = "";
   addSetRow();
@@ -1063,8 +1231,14 @@ function saveCardio() {
   const date = selectedDate();
   const weight = numberFromInput(elements.bodyWeight);
   if (weight) store.weights[date] = weight;
+  const existing = editingWorkoutId
+    ? store.workouts.find((workout) => workout.id === editingWorkoutId)
+    : null;
+  if (editingWorkoutId) {
+    store.workouts = store.workouts.filter((workout) => workout.id !== editingWorkoutId);
+  }
   store.workouts.push({
-    id: uuid(),
+    id: editingWorkoutId || uuid(),
     date,
     mode: "cardio",
     key: elements.cardioName.value,
@@ -1075,11 +1249,13 @@ function saveCardio() {
     effectiveRate: clone(estimate.rate),
     referenceWeightKg,
     bodyWeight: weight || activeBodyWeight(),
-    createdAt: new Date().toISOString(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
   });
   writeStore(store);
-  setStatus(`${estimate.rate.label}を保存しました。`);
-  elements.cardioMinutes.value = "";
+  selectedHistoryDate = date;
+  setStatus(`${estimate.rate.label}を${existing ? "更新" : "保存"}しました。`);
+  editingWorkoutId = null;
+  elements.cardioMinutes.value = "30";
   renderAll();
 }
 
@@ -1116,6 +1292,30 @@ function copyLastStrengthSet() {
   last.sets.forEach((set) => addSetRow(set.weight, set.reps));
   elements.strengthDuration.value = last.minutes;
   setStatus(`${last.name}の前回セットをコピーしました。`);
+}
+
+function copyLastCardio() {
+  const store = readStore();
+  const key = elements.cardioName.value;
+  const last = store.workouts
+    .filter((workout) => workout.mode === "cardio" && workout.key === key)
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+  if (!last) {
+    setStatus("コピーできる前回の有酸素記録がありません。");
+    return;
+  }
+  elements.cardioMinutes.value = last.minutes || "";
+  setStatus(`${last.name}の前回分数をコピーしました。`);
+  renderPreviews();
+}
+
+function copyLastWorkout() {
+  const activeMode = $(".mode-button.active")?.dataset.mode;
+  if (activeMode === "strength") {
+    copyLastStrengthSet();
+    return;
+  }
+  copyLastCardio();
 }
 
 function seedSamples() {
@@ -1195,6 +1395,7 @@ function seedSamples() {
     });
   });
   writeStore(store);
+  selectedHistoryDate = today;
   setStatus("サンプルを追加しました。");
   renderAll();
 }
@@ -1250,7 +1451,7 @@ function bindEvents() {
     button.addEventListener("click", () => setCardioMinutes(Number(button.dataset.cardioMinutes)));
   });
   elements.addSetButton.addEventListener("click", () => addSetRow());
-  elements.copyLastSetButton.addEventListener("click", copyLastStrengthSet);
+  elements.copyLastSetButton.addEventListener("click", copyLastWorkout);
   elements.resetRatesButton.addEventListener("click", resetRates);
   elements.seedButton.addEventListener("click", seedSamples);
   elements.exportButton.addEventListener("click", exportJson);
@@ -1268,6 +1469,7 @@ function bindEvents() {
 
 elements.todayBadge.textContent = formatBadgeDate(new Date());
 elements.entryDate.value = localDate();
+elements.cardioMinutes.value = "30";
 populateExerciseOptions();
 addSetRow();
 addSetRow();
