@@ -1334,8 +1334,9 @@ select:focus,
   }
 
   .entry-panel .section-heading {
-    align-items: center;
-    flex-direction: row;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .comparison-panel .section-heading,
@@ -1349,8 +1350,13 @@ select:focus,
     width: 100%;
   }
 
+  .entry-heading-actions {
+    width: 100%;
+  }
+
   .entry-panel .date-input {
-    display: none;
+    max-width: none;
+    width: 100%;
   }
 
   input,

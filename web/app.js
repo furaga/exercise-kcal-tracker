@@ -77,12 +77,14 @@ const elements = {
   cardioPreviewMinutes: $("#cardioPreviewMinutes"),
   cardioCalories: $("#cardioCalories"),
   cardioSaveCalories: $("#cardioSaveCalories"),
+  cardioSubmitButton: $("#cardioForm .primary-button"),
   statusText: $("#statusText"),
   rateEditor: $("#rateEditor"),
   resetRatesButton: $("#resetRatesButton"),
   comparisonList: $("#comparisonList"),
   historyTabs: $("#historyTabs"),
   historyList: $("#historyList"),
+  strengthSubmitButton: $("#strengthForm .primary-button"),
   exportButton: $("#exportButton"),
 };
 
@@ -325,7 +327,11 @@ function normalizeStoreForCloud(store) {
   const workouts = store.workouts.map((workout) => {
     if (isUuid(workout.id)) return workout;
     changed = true;
-    return { ...workout, id: uuid() };
+    const nextId = uuid();
+    if (editingWorkoutId === workout.id) {
+      editingWorkoutId = nextId;
+    }
+    return { ...workout, id: nextId };
   });
   if (changed) {
     const next = { ...store, workouts };
@@ -450,7 +456,9 @@ async function syncCloud() {
     store.workouts.map((workout) => workout.id),
   );
   if (store.workouts.length) {
-    const { error } = await supabaseClient.from("workouts").upsert(store.workouts.map(workoutToRow));
+    const { error } = await supabaseClient
+      .from("workouts")
+      .upsert(store.workouts.map(workoutToRow), { onConflict: "id" });
     if (error) throw error;
   }
 
@@ -667,6 +675,25 @@ function formattedStepperValue(value, step) {
   return fixed(value, step < 1 ? 1 : 0);
 }
 
+function bindSelectAllOnFocus(input) {
+  input.addEventListener("focus", () => {
+    input.dataset.selectingOnFocus = "true";
+    input.select();
+  });
+  input.addEventListener("mouseup", (event) => {
+    if (input.dataset.selectingOnFocus === "true") {
+      event.preventDefault();
+      delete input.dataset.selectingOnFocus;
+    }
+  });
+  input.addEventListener("keydown", () => {
+    delete input.dataset.selectingOnFocus;
+  });
+  input.addEventListener("blur", () => {
+    delete input.dataset.selectingOnFocus;
+  });
+}
+
 function adjustSetInput(input, delta) {
   const min = Number(input.min || 0);
   const max = Number(input.max || 1000);
@@ -698,6 +725,7 @@ function createSetStepper({ field, value, unit, min, max, step, inputMode, label
   input.dataset.field = field;
   input.value = value === "" ? "" : formattedStepperValue(Number(value), step);
   input.setAttribute("aria-label", label);
+  bindSelectAllOnFocus(input);
 
   const suffix = document.createElement("span");
   suffix.textContent = unit;
@@ -732,7 +760,7 @@ function addSetRow(weight = "", reps = "") {
         unit: "kg",
         min: 0,
         max: 1000,
-        step: 2.5,
+        step: 5,
         inputMode: "decimal",
         label: "重量",
       })
@@ -828,7 +856,20 @@ function renderPreviews() {
   elements.cardioPreviewMinutes.textContent = formatNumber(cardio.minutes);
   elements.cardioCalories.textContent = formatNumber(cardio.calories);
   elements.cardioSaveCalories.textContent = `${formatNumber(cardio.calories)} kcal`;
+  renderSaveButtonLabels();
   updateMinuteChips(cardio.minutes);
+}
+
+function renderSaveButtonLabels() {
+  const label = editingWorkoutId ? "更新" : "保存";
+  [
+    [elements.cardioSubmitButton, elements.cardioSaveCalories],
+    [elements.strengthSubmitButton, elements.strengthSaveCalories],
+  ].forEach(([button, calories]) => {
+    if (!button || !calories) return;
+    button.textContent = "";
+    button.append(document.createTextNode(`${label} `), calories);
+  });
 }
 
 function workoutsBetween(startKey, endKey, store = readStore()) {
@@ -1073,7 +1114,8 @@ function renderHistoryTabs(dates, byDate) {
     button.append(day, main, kcal);
     button.addEventListener("click", () => {
       selectedHistoryDate = date;
-      renderHistory();
+      elements.entryDate.value = date;
+      loadWeightForDate();
     });
     elements.historyTabs.append(button);
   });
@@ -1081,8 +1123,10 @@ function renderHistoryTabs(dates, byDate) {
 
 function loadWorkoutForEdit(workout) {
   editingWorkoutId = workout.id;
+  selectedHistoryDate = workout.date;
   elements.entryDate.value = workout.date;
-  if (workout.bodyWeight) elements.bodyWeight.value = fixed(workout.bodyWeight, 1);
+  const workoutWeight = workout.bodyWeight || latestWeightOn(workout.date)?.value;
+  elements.bodyWeight.value = workoutWeight ? fixed(workoutWeight, 1) : "";
 
   if (workout.mode === "cardio") {
     setMode("cardio");
@@ -1288,14 +1332,13 @@ function saveStrength() {
   const date = selectedDate();
   const weight = numberFromInput(elements.bodyWeight);
   if (weight) store.weights[date] = weight;
-  const existing = editingWorkoutId
-    ? store.workouts.find((workout) => workout.id === editingWorkoutId)
-    : null;
-  if (editingWorkoutId) {
-    store.workouts = store.workouts.filter((workout) => workout.id !== editingWorkoutId);
-  }
-  store.workouts.push({
-    id: editingWorkoutId || uuid(),
+  const wasEditing = Boolean(editingWorkoutId);
+  const existingIndex = editingWorkoutId
+    ? store.workouts.findIndex((workout) => workout.id === editingWorkoutId)
+    : -1;
+  const existing = existingIndex >= 0 ? store.workouts[existingIndex] : null;
+  const nextWorkout = {
+    id: existing?.id || editingWorkoutId || uuid(),
     date,
     mode: "strength",
     key: elements.strengthName.value,
@@ -1310,10 +1353,15 @@ function saveStrength() {
     referenceWeightKg,
     bodyWeight: weight || activeBodyWeight(),
     createdAt: existing?.createdAt || new Date().toISOString(),
-  });
+  };
+  if (existingIndex >= 0) {
+    store.workouts[existingIndex] = nextWorkout;
+  } else {
+    store.workouts.push(nextWorkout);
+  }
   writeStore(store);
   selectedHistoryDate = date;
-  setStatus(`${estimate.rate.label}を${existing ? "更新" : "保存"}しました。`);
+  setStatus(`${estimate.rate.label}を${wasEditing ? "更新" : "保存"}しました。`);
   editingWorkoutId = null;
   elements.setList.textContent = "";
   elements.strengthDuration.value = "";
@@ -1334,14 +1382,13 @@ function saveCardio() {
   const date = selectedDate();
   const weight = numberFromInput(elements.bodyWeight);
   if (weight) store.weights[date] = weight;
-  const existing = editingWorkoutId
-    ? store.workouts.find((workout) => workout.id === editingWorkoutId)
-    : null;
-  if (editingWorkoutId) {
-    store.workouts = store.workouts.filter((workout) => workout.id !== editingWorkoutId);
-  }
-  store.workouts.push({
-    id: editingWorkoutId || uuid(),
+  const wasEditing = Boolean(editingWorkoutId);
+  const existingIndex = editingWorkoutId
+    ? store.workouts.findIndex((workout) => workout.id === editingWorkoutId)
+    : -1;
+  const existing = existingIndex >= 0 ? store.workouts[existingIndex] : null;
+  const nextWorkout = {
+    id: existing?.id || editingWorkoutId || uuid(),
     date,
     mode: "cardio",
     key: elements.cardioName.value,
@@ -1353,16 +1400,25 @@ function saveCardio() {
     referenceWeightKg,
     bodyWeight: weight || activeBodyWeight(),
     createdAt: existing?.createdAt || new Date().toISOString(),
-  });
+  };
+  if (existingIndex >= 0) {
+    store.workouts[existingIndex] = nextWorkout;
+  } else {
+    store.workouts.push(nextWorkout);
+  }
   writeStore(store);
   selectedHistoryDate = date;
-  setStatus(`${estimate.rate.label}を${existing ? "更新" : "保存"}しました。`);
+  setStatus(`${estimate.rate.label}を${wasEditing ? "更新" : "保存"}しました。`);
   editingWorkoutId = null;
   elements.cardioMinutes.value = "30";
   renderAll();
 }
 
 function loadWeightForDate() {
+  const byDate = groupedWorkoutsByDate();
+  if (byDate.has(selectedDate())) {
+    selectedHistoryDate = selectedDate();
+  }
   const latest = latestWeightOn(selectedDate());
   elements.bodyWeight.value = latest?.value ? latest.value.toFixed(1) : "";
   setWeightStatus("");
@@ -1385,7 +1441,13 @@ function saveWeight() {
 function previousWorkoutFor(mode, key) {
   const date = selectedDate();
   return readStore()
-    .workouts.filter((workout) => workout.mode === mode && workout.key === key && workout.date < date)
+    .workouts.filter(
+      (workout) =>
+        workout.id !== editingWorkoutId &&
+        workout.mode === mode &&
+        workout.key === key &&
+        workout.date <= date,
+    )
     .sort((a, b) => {
       const dateOrder = (b.date || "").localeCompare(a.date || "");
       if (dateOrder) return dateOrder;
@@ -1397,20 +1459,26 @@ function copyLastStrengthSet() {
   const key = elements.strengthName.value;
   const last = previousWorkoutFor("strength", key);
   if (!last) {
-    setStatus("選択中の日付より前に、同じ筋トレ種目の記録がありません。");
+    setStatus("選択中の日付以前に、同じ筋トレ種目の記録がありません。");
     return;
   }
   elements.setList.textContent = "";
-  last.sets.forEach((set) => addSetRow(set.weight, set.reps));
-  elements.strengthDuration.value = last.minutes;
+  const copiedSets = Array.isArray(last.sets) ? last.sets : [];
+  if (copiedSets.length) {
+    copiedSets.forEach((set) => addSetRow(set.weight, set.reps));
+  } else {
+    addSetRow(strengthUsesLoad(key) ? "" : 0, last.reps || 10);
+  }
+  elements.strengthDuration.value = last.minutes || "";
   setStatus(`${last.date}の${last.name}をコピーしました。`);
+  renderPreviews();
 }
 
 function copyLastCardio() {
   const key = elements.cardioName.value;
   const last = previousWorkoutFor("cardio", key);
   if (!last) {
-    setStatus("選択中の日付より前に、同じ有酸素種目の記録がありません。");
+    setStatus("選択中の日付以前に、同じ有酸素種目の記録がありません。");
     return;
   }
   elements.cardioMinutes.value = last.minutes || "";
