@@ -24,18 +24,34 @@ let selectedHistoryDate = null;
 let editingWorkoutId = null;
 
 const defaultStrengthRates = {
-  latPulldown: { label: "ラットプルダウン", kcalPerRep: 0.32, kcalPerMinute: 1.6 },
-  pushup: { label: "腕立て伏せ", kcalPerRep: 0.28, kcalPerMinute: 1.8 },
-  chestPress: { label: "チェストプレス", kcalPerRep: 0.32, kcalPerMinute: 1.6 },
-  shoulderPress: { label: "ショルダープレス", kcalPerRep: 0.3, kcalPerMinute: 1.6 },
-  legPress: { label: "レッグプレス", kcalPerRep: 0.45, kcalPerMinute: 1.9 },
+  pushup: { label: "腕立て伏せ", icon: "💪", kcalPerRep: 0.28, kcalPerMinute: 1.8 },
+  legPress: { label: "レッグプレス", icon: "🦵", kcalPerRep: 0.45, kcalPerMinute: 1.9 },
+  latPulldown: { label: "ラットプルダウン", icon: "⬇", kcalPerRep: 0.32, kcalPerMinute: 1.6 },
+  shoulderPress: { label: "ショルダープレス", icon: "🏋", kcalPerRep: 0.3, kcalPerMinute: 1.6 },
+  chestPress: { label: "チェストプレス", icon: "↔", kcalPerRep: 0.32, kcalPerMinute: 1.6 },
+  bicepsCurl: { label: "バイセップスカール", icon: "💪", kcalPerRep: 0.24, kcalPerMinute: 1.4 },
+  dips: { label: "ディップス", icon: "↓", kcalPerRep: 0.3, kcalPerMinute: 1.5 },
+  adduction: { label: "アダクション", icon: "→←", kcalPerRep: 0.28, kcalPerMinute: 1.4 },
+  abduction: { label: "アブダクション", icon: "←→", kcalPerRep: 0.3, kcalPerMinute: 1.5 },
+  abdominalTrainer: { label: "アブドミナルトレーナー", icon: "◎", kcalPerRep: 0.3, kcalPerMinute: 1.5 },
+  abBench: { label: "アブベンチ", icon: "▱", kcalPerRep: 0.24, kcalPerMinute: 1.4 },
 };
 
 const defaultCardioRates = {
-  step: { label: "踏み台昇降", kcalPerMinute: 5.0 },
-  running: { label: "ランニング", kcalPerMinute: 7.2 },
-  walking: { label: "ウォーキング", kcalPerMinute: 3.4 },
-  bike: { label: "エアロバイク", kcalPerMinute: 4.8 },
+  step: { label: "踏み台昇降", icon: "▰", kcalPerMinute: 5.0 },
+  walking: { label: "ウォーキング", icon: "🚶", kcalPerMinute: 3.4 },
+  bike: { label: "エアロバイク（バイク）", icon: "🚲", kcalPerMinute: 4.8 },
+  running: { label: "ランニング", icon: "🏃", kcalPerMinute: 7.2 },
+};
+
+const bodyweightStrengthKeys = new Set(["abBench", "pushup"]);
+const deprecatedRateKeys = {
+  cardio: new Set(["deskBike", "treadmill"]),
+  strength: new Set(),
+};
+const cardioDistanceConfig = {
+  walking: { referenceKmh: 4.8, minKmh: 1, maxKmh: 8 },
+  running: { referenceKmh: 8, minKmh: 5, maxKmh: 22 },
 };
 
 const elements = {
@@ -58,7 +74,10 @@ const elements = {
   strengthForm: $("#strengthForm"),
   cardioForm: $("#cardioForm"),
   strengthName: $("#strengthName"),
+  strengthExtraDetails: $("#strengthExtraDetails"),
+  strengthDurationSummary: $("#strengthDurationSummary"),
   strengthDuration: $("#strengthDuration"),
+  clearStrengthDurationButton: $("#clearStrengthDurationButton"),
   strengthRateNote: $("#strengthRateNote"),
   setList: $("#setList"),
   addSetButton: $("#addSetButton"),
@@ -70,6 +89,11 @@ const elements = {
   strengthSaveCalories: $("#strengthSaveCalories"),
   cardioName: $("#cardioName"),
   cardioMinutes: $("#cardioMinutes"),
+  cardioExtraDetails: $("#cardioExtraDetails"),
+  cardioExtraSummary: $("#cardioExtraSummary"),
+  cardioDistance: $("#cardioDistance"),
+  cardioManualCalories: $("#cardioManualCalories"),
+  clearCardioExtraButton: $("#clearCardioExtraButton"),
   cardioMinus: $("#cardioMinus"),
   cardioPlus: $("#cardioPlus"),
   cardioRateNote: $("#cardioRateNote"),
@@ -108,7 +132,11 @@ function defaultRates() {
   };
 }
 
-function mergeRateGroup(defaultGroup, savedGroup = {}) {
+function exerciseDisplayName(rate) {
+  return rate.icon ? `${rate.icon} ${rate.label}` : rate.label;
+}
+
+function mergeRateGroup(defaultGroup, savedGroup = {}, removedKeys = new Set()) {
   const merged = {};
   Object.entries(defaultGroup).forEach(([key, defaultRate]) => {
     const savedRate = savedGroup[key] || {};
@@ -120,6 +148,7 @@ function mergeRateGroup(defaultGroup, savedGroup = {}) {
   });
 
   Object.entries(savedGroup || {}).forEach(([key, rate]) => {
+    if (removedKeys.has(key)) return;
     if (!merged[key]) merged[key] = rate;
   });
 
@@ -131,8 +160,8 @@ function normalizeStore(parsed = {}) {
     weights: parsed.weights || {},
     workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
     rates: {
-      strength: mergeRateGroup(defaultStrengthRates, parsed.rates?.strength),
-      cardio: mergeRateGroup(defaultCardioRates, parsed.rates?.cardio),
+      strength: mergeRateGroup(defaultStrengthRates, parsed.rates?.strength, deprecatedRateKeys.strength),
+      cardio: mergeRateGroup(defaultCardioRates, parsed.rates?.cardio, deprecatedRateKeys.cardio),
     },
   };
 }
@@ -362,6 +391,9 @@ function workoutToRow(workout) {
 }
 
 function rowToWorkout(row) {
+  const effectiveRate = row.effective_rate || row.base_rate || {};
+  const distanceKm = row.distance_km ?? effectiveRate.distanceKm ?? null;
+  const manualCalories = row.manual_calories ?? effectiveRate.manualCalories ?? null;
   return {
     id: row.id,
     date: row.date,
@@ -374,7 +406,9 @@ function rowToWorkout(row) {
     volume: row.volume === null ? null : Number(row.volume),
     sets: row.sets || [],
     baseRate: row.base_rate || {},
-    effectiveRate: row.effective_rate || row.base_rate || {},
+    effectiveRate,
+    distanceKm: distanceKm === null ? null : Number(distanceKm),
+    manualCalories: manualCalories === null ? null : Number(manualCalories),
     bodyWeight: row.body_weight === null ? null : Number(row.body_weight),
     createdAt: row.created_at,
   };
@@ -594,7 +628,7 @@ function populateExerciseOptions() {
   Object.entries(store.rates.strength).forEach(([key, rate]) => {
     const option = document.createElement("option");
     option.value = key;
-    option.textContent = rate.label;
+    option.textContent = exerciseDisplayName(rate);
     elements.strengthName.append(option);
   });
 
@@ -602,7 +636,7 @@ function populateExerciseOptions() {
   Object.entries(store.rates.cardio).forEach(([key, rate]) => {
     const option = document.createElement("option");
     option.value = key;
-    option.textContent = rate.label;
+    option.textContent = exerciseDisplayName(rate);
     elements.cardioName.append(option);
   });
 }
@@ -633,7 +667,7 @@ function strengthVolume(sets) {
 }
 
 function strengthUsesLoad(key = elements.strengthName.value) {
-  return key !== "pushup";
+  return !bodyweightStrengthKeys.has(key);
 }
 
 function firstRate(group) {
@@ -662,13 +696,38 @@ function strengthEstimate() {
   };
 }
 
+function cardioDistanceFactor(key, minutes, distanceKm) {
+  const config = cardioDistanceConfig[key];
+  if (!config || !minutes || !distanceKm) return { averageKmh: null, factor: 1 };
+  const averageKmh = distanceKm / (minutes / 60);
+  const boundedKmh = Math.max(config.minKmh, Math.min(config.maxKmh, averageKmh));
+  return {
+    averageKmh,
+    factor: boundedKmh / config.referenceKmh,
+  };
+}
+
 function cardioEstimate() {
   const store = readStore();
-  const baseRate = store.rates.cardio[elements.cardioName.value] || firstRate(store.rates.cardio);
-  const rate = adjustedRate(baseRate);
+  const key = elements.cardioName.value;
+  const baseRate = store.rates.cardio[key] || firstRate(store.rates.cardio);
+  const baseAdjustedRate = adjustedRate(baseRate);
   const minutes = numberFromInput(elements.cardioMinutes) || 0;
-  const calories = minutes * (rate.kcalPerMinute || 0);
-  return { baseRate, rate, minutes, calories };
+  const distanceKm = numberFromInput(elements.cardioDistance);
+  const manualCalories = numberFromInput(elements.cardioManualCalories);
+  const distance = cardioDistanceFactor(key, minutes, distanceKm);
+  const rate = {
+    ...baseAdjustedRate,
+    kcalPerMinute: baseAdjustedRate.kcalPerMinute * distance.factor,
+    distanceKm,
+    averageKmh: distance.averageKmh,
+    distanceFactor: distance.factor,
+    manualCalories,
+    manualOverride: manualCalories !== null,
+  };
+  const calculatedCalories = minutes * (rate.kcalPerMinute || 0);
+  const calories = manualCalories !== null ? manualCalories : calculatedCalories;
+  return { baseRate, rate, minutes, distanceKm, manualCalories, calories, calculatedCalories };
 }
 
 function formattedStepperValue(value, step) {
@@ -831,6 +890,20 @@ function updateMinuteChips(minutes) {
   });
 }
 
+function updateStrengthDurationSummary() {
+  const minutes = numberFromInput(elements.strengthDuration);
+  elements.strengthDurationSummary.textContent = minutes ? `${fixed(minutes, 1)}分` : "自動";
+  elements.strengthExtraDetails.classList.toggle("has-values", Boolean(minutes));
+}
+
+function updateCardioExtraSummary(cardio) {
+  const parts = [];
+  if (cardio.distanceKm) parts.push(`${fixed(cardio.distanceKm, 2)}km`);
+  if (cardio.manualCalories !== null) parts.push(`${formatNumber(cardio.manualCalories)}kcal`);
+  elements.cardioExtraSummary.textContent = parts.length ? parts.join(" / ") : "任意";
+  elements.cardioExtraDetails.classList.toggle("has-values", parts.length > 0);
+}
+
 function renderPreviews() {
   const strength = strengthEstimate();
   elements.strengthRateNote.textContent =
@@ -847,17 +920,24 @@ function renderPreviews() {
   elements.strengthCalories.textContent = `${formatNumber(strength.calories)}kcal`;
   elements.strengthCalories.nextElementSibling.textContent = "消費";
   elements.strengthSaveCalories.textContent = `${formatNumber(strength.calories)} kcal`;
+  updateStrengthDurationSummary();
 
   const cardio = cardioEstimate();
+  const distanceNote = cardio.distanceKm
+    ? `、距離 ${fixed(cardio.distanceKm, 2)}km` +
+      (cardio.rate.averageKmh ? `・平均 ${fixed(cardio.rate.averageKmh, 1)}km/h補正 x${fixed(cardio.rate.distanceFactor, 2)}` : "")
+    : "";
+  const manualNote = cardio.manualCalories !== null ? `、表示kcalを優先（計算値 ${formatNumber(cardio.calculatedCalories)} kcal）` : "";
   elements.cardioRateNote.textContent =
     `${cardio.rate.label}: 基準 ${fixed(cardio.baseRate.kcalPerMinute)} kcal/分 → ` +
-    `${fixed(cardio.rate.kcalPerMinute)} kcal/分 (${weightNote()})`;
+    `${fixed(cardio.rate.kcalPerMinute)} kcal/分 (${weightNote()}${distanceNote}${manualNote})`;
   elements.cardioRate.textContent = fixed(cardio.rate.kcalPerMinute);
   elements.cardioPreviewMinutes.textContent = formatNumber(cardio.minutes);
   elements.cardioCalories.textContent = formatNumber(cardio.calories);
   elements.cardioSaveCalories.textContent = `${formatNumber(cardio.calories)} kcal`;
   renderSaveButtonLabels();
   updateMinuteChips(cardio.minutes);
+  updateCardioExtraSummary(cardio);
 }
 
 function renderSaveButtonLabels() {
@@ -1080,7 +1160,9 @@ function renderComparisonList() {
 
 function workoutDetail(workout) {
   if (workout.mode === "cardio") {
-    return `${workout.minutes}分`;
+    const distance = workout.distanceKm ? `・${fixed(workout.distanceKm, 2)}km` : "";
+    const manual = workout.manualCalories !== null && workout.manualCalories !== undefined ? "・表示kcal" : "";
+    return `${workout.minutes}分${distance}${manual}`;
   }
   const sets = (workout.sets || []).map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
   return `${sets || formatNumber(workout.reps)} / ${fixed(workout.minutes, 1)}分`;
@@ -1132,10 +1214,14 @@ function loadWorkoutForEdit(workout) {
     setMode("cardio");
     elements.cardioName.value = workout.key;
     elements.cardioMinutes.value = workout.minutes || "";
+    elements.cardioDistance.value = workout.distanceKm || workout.effectiveRate?.distanceKm || "";
+    elements.cardioManualCalories.value = workout.manualCalories || workout.effectiveRate?.manualCalories || "";
+    elements.cardioExtraDetails.open = Boolean(elements.cardioDistance.value || elements.cardioManualCalories.value);
   } else {
     setMode("strength");
     elements.strengthName.value = workout.key;
     elements.strengthDuration.value = workout.minutes || "";
+    elements.strengthExtraDetails.open = Boolean(elements.strengthDuration.value);
     elements.setList.textContent = "";
     (workout.sets || []).forEach((set) => addSetRow(set.weight, set.reps));
     if (!(workout.sets || []).length) addSetRow();
@@ -1264,7 +1350,7 @@ function renderRateEditor() {
       row.className = "rate-row";
 
       const name = document.createElement("strong");
-      name.textContent = rate.label;
+      name.textContent = exerciseDisplayName(rate);
       row.append(name);
 
       if (repLabel) {
@@ -1365,6 +1451,7 @@ function saveStrength() {
   editingWorkoutId = null;
   elements.setList.textContent = "";
   elements.strengthDuration.value = "";
+  elements.strengthExtraDetails.open = false;
   addSetRow();
   addSetRow();
   addSetRow();
@@ -1394,6 +1481,8 @@ function saveCardio() {
     key: elements.cardioName.value,
     name: estimate.rate.label,
     minutes: estimate.minutes,
+    distanceKm: estimate.distanceKm,
+    manualCalories: estimate.manualCalories,
     calories: estimate.calories,
     baseRate: clone(estimate.baseRate),
     effectiveRate: clone(estimate.rate),
@@ -1411,6 +1500,9 @@ function saveCardio() {
   setStatus(`${estimate.rate.label}を${wasEditing ? "更新" : "保存"}しました。`);
   editingWorkoutId = null;
   elements.cardioMinutes.value = "30";
+  elements.cardioDistance.value = "";
+  elements.cardioManualCalories.value = "";
+  elements.cardioExtraDetails.open = false;
   renderAll();
 }
 
@@ -1470,6 +1562,7 @@ function copyLastStrengthSet() {
     addSetRow(strengthUsesLoad(key) ? "" : 0, last.reps || 10);
   }
   elements.strengthDuration.value = last.minutes || "";
+  elements.strengthExtraDetails.open = Boolean(elements.strengthDuration.value);
   setStatus(`${last.date}の${last.name}をコピーしました。`);
   renderPreviews();
 }
@@ -1482,6 +1575,9 @@ function copyLastCardio() {
     return;
   }
   elements.cardioMinutes.value = last.minutes || "";
+  elements.cardioDistance.value = last.distanceKm || last.effectiveRate?.distanceKm || "";
+  elements.cardioManualCalories.value = last.manualCalories || last.effectiveRate?.manualCalories || "";
+  elements.cardioExtraDetails.open = Boolean(elements.cardioDistance.value || elements.cardioManualCalories.value);
   setStatus(`${last.date}の${last.name}をコピーしました。`);
   renderPreviews();
 }
@@ -1517,6 +1613,19 @@ function adjustCardioMinutes(delta) {
   setCardioMinutes(current + delta);
 }
 
+function clearCardioExtras() {
+  elements.cardioDistance.value = "";
+  elements.cardioManualCalories.value = "";
+  elements.cardioExtraDetails.open = false;
+  renderPreviews();
+}
+
+function clearStrengthDuration() {
+  elements.strengthDuration.value = "";
+  elements.strengthExtraDetails.open = false;
+  renderPreviews();
+}
+
 function bindEvents() {
   $$(".mode-button").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));
@@ -1532,8 +1641,12 @@ function bindEvents() {
   elements.saveWeightButton.addEventListener("click", saveWeight);
   elements.strengthName.addEventListener("change", rerenderSetRowsForExercise);
   elements.strengthDuration.addEventListener("input", renderPreviews);
+  elements.clearStrengthDurationButton.addEventListener("click", clearStrengthDuration);
   elements.cardioName.addEventListener("change", renderPreviews);
   elements.cardioMinutes.addEventListener("input", renderPreviews);
+  elements.cardioDistance.addEventListener("input", renderPreviews);
+  elements.cardioManualCalories.addEventListener("input", renderPreviews);
+  elements.clearCardioExtraButton.addEventListener("click", clearCardioExtras);
   elements.cardioMinus.addEventListener("click", () => adjustCardioMinutes(-5));
   elements.cardioPlus.addEventListener("click", () => adjustCardioMinutes(5));
   $$("[data-cardio-minutes]").forEach((button) => {

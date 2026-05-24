@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=53">
+    <link rel="stylesheet" href="./styles.css?v=59">
   </head>
   <body>
     <main class="app-shell">
@@ -108,6 +108,26 @@
             <button type="button" data-cardio-minutes="45">45分</button>
           </div>
 
+          <details class="cardio-extra-disclosure" id="cardioExtraDetails">
+            <summary>
+              <span>距離・表示kcal</span>
+              <small id="cardioExtraSummary">任意</small>
+            </summary>
+            <div class="cardio-extra-body">
+              <div class="cardio-extra-grid" aria-label="有酸素の任意入力">
+                <label>
+                  <span>距離 km</span>
+                  <input id="cardioDistance" type="number" min="0" max="200" step="0.01" inputmode="decimal">
+                </label>
+                <label>
+                  <span>表示kcal</span>
+                  <input id="cardioManualCalories" type="number" min="0" max="5000" step="1" inputmode="numeric">
+                </label>
+              </div>
+              <button class="secondary-button compact ghost" id="clearCardioExtraButton" type="button">クリア</button>
+            </div>
+          </details>
+
           <div class="preview-strip" aria-label="有酸素の概算">
             <div>
               <span id="cardioRate">0</span>
@@ -139,11 +159,21 @@
               </label>
               <button class="secondary-button compact ghost copy-button" id="copyLastStrengthButton" type="button" title="選択中の日付以前の同じ種目をコピー">前回コピー</button>
             </div>
-            <label class="duration-field">
-              <span>所要時間</span>
-              <input id="strengthDuration" type="number" min="1" max="240" step="1" inputmode="numeric" placeholder="自動">
-            </label>
           </div>
+
+          <details class="strength-extra-disclosure" id="strengthExtraDetails">
+            <summary>
+              <span>所要時間</span>
+              <small id="strengthDurationSummary">自動</small>
+            </summary>
+            <div class="strength-extra-body">
+              <label class="duration-field">
+                <span>所要時間</span>
+                <input id="strengthDuration" type="number" min="1" max="240" step="1" inputmode="numeric">
+              </label>
+              <button class="secondary-button compact ghost" id="clearStrengthDurationButton" type="button">クリア</button>
+            </div>
+          </details>
 
           <div class="set-list" id="setList" aria-label="セット一覧"></div>
 
@@ -233,6 +263,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=53" defer></script>
+    <script src="./app.js?v=59" defer></script>
   </body>
 </html>
