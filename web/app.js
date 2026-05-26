@@ -6,7 +6,6 @@ const supabaseUrl = "https://lavpmdrjwtsbsxumfnon.supabase.co";
 const supabaseAnonKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhdnBtZHJqd3RzYnN4dW1mbm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjI0NzcsImV4cCI6MjA5NTA5ODQ3N30.fVSQoXxRRiF_iGJn8gREfCgZPgbM-BMT07dXLzWlibA";
 const referenceWeightKg = 57.5;
-const weeklyGoalKcal = 2000;
 const supabaseClient =
   window.supabase?.createClient?.(supabaseUrl, supabaseAnonKey, {
     auth: {
@@ -58,7 +57,6 @@ const elements = {
   todayBadge: $("#todayBadge"),
   allCalories: $("#allCalories"),
   weekCalories: $("#weekCalories"),
-  weekProgress: $("#weekProgress"),
   weekChart: $("#weekChart"),
   authStatus: $("#authStatus"),
   authIdentity: $("#authIdentity"),
@@ -66,7 +64,6 @@ const elements = {
   signOutButton: $("#signOutButton"),
   todayCalories: $("#todayCalories"),
   monthCalories: $("#monthCalories"),
-  loggedDays: $("#loggedDays"),
   entryDate: $("#entryDate"),
   bodyWeight: $("#bodyWeight"),
   saveWeightButton: $("#saveWeightButton"),
@@ -964,22 +961,6 @@ function sumCalories(workouts) {
   return workouts.reduce((sum, workout) => sum + (workout.calories || 0), 0);
 }
 
-function loggedDateSet(store = readStore()) {
-  return new Set(store.workouts.map((workout) => workout.date));
-}
-
-function currentStreak(store = readStore()) {
-  const dates = loggedDateSet(store);
-  if (!dates.size) return 0;
-  let cursor = dates.has(localDate()) ? localDate() : Array.from(dates).sort().reverse()[0];
-  let streak = 0;
-  while (dates.has(cursor)) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return streak;
-}
-
 function renderWeekChart(store, weekStart) {
   if (!elements.weekChart) return;
   const today = localDate();
@@ -1032,8 +1013,6 @@ function renderSummary() {
   elements.todayCalories.textContent = formatNumber(sumCalories(todayWorkouts));
   elements.weekCalories.textContent = formatNumber(weekCalories);
   elements.monthCalories.textContent = formatNumber(sumCalories(monthWorkouts));
-  elements.loggedDays.textContent = formatNumber(currentStreak(store));
-  elements.weekProgress.textContent = `${Math.round((weekCalories / weeklyGoalKcal) * 100)}%`;
   renderWeekChart(store, weekStart);
 }
 

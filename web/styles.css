@@ -324,6 +324,10 @@ h3 {
   gap: 10px;
 }
 
+.summary-grid .metric-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .metric-card {
   min-width: 0;
   padding: 15px 14px;
@@ -1310,7 +1314,11 @@ select:focus,
   }
 
   .summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .summary-grid .metric-card:last-child:nth-child(odd) {
+    grid-column: auto;
   }
 
   .form-grid,
@@ -1395,12 +1403,12 @@ select:focus,
   }
 
   .summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
   }
 
   .metric-card {
-    padding: 8px 7px;
+    padding: 10px 8px;
   }
 
   .metric-card small {
@@ -1408,11 +1416,12 @@ select:focus,
   }
 
   .metric-card span {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
+    white-space: normal;
   }
 
   .metric-card b {
-    font-size: 1.48rem;
+    font-size: 1.34rem;
   }
 
   .section-heading {

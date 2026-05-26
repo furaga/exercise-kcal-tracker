@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=59">
+    <link rel="stylesheet" href="./styles.css?v=60">
   </head>
   <body>
     <main class="app-shell">
@@ -37,7 +37,6 @@
           <div class="summary-total">
             <strong id="weekCalories">0</strong>
             <span>kcal</span>
-            <em id="weekProgress">0%</em>
           </div>
           <div class="week-chart" id="weekChart" aria-label="今週と先週の消費カロリー推移"></div>
           <div class="chart-legend" aria-hidden="true">
@@ -58,10 +57,6 @@
           <div class="metric-card">
             <small>累計</small>
             <span><b id="allCalories">0</b> kcal</span>
-          </div>
-          <div class="metric-card">
-            <small>連続</small>
-            <span><b id="loggedDays">0</b> 日</span>
           </div>
         </div>
       </section>
@@ -263,6 +258,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=59" defer></script>
+    <script src="./app.js?v=60" defer></script>
   </body>
 </html>
