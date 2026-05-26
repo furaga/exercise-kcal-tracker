@@ -41,6 +41,27 @@ python serve.py
 Open the `iPhone:` URL printed by the server on a phone connected to the same
 Wi-Fi network.
 
+## Deploy memo
+
+GitHub Pages deploys are handled by `.github/workflows/pages.yml`.
+
+- Push to `main` to deploy.
+- The workflow uploads the `web/` directory as the static site artifact.
+- Public URL: `https://furaga.github.io/exercise-kcal-tracker/`
+- When changing `web/app.js` or `web/styles.css`, bump the query versions in
+  `web/index.html` and update `web/sw.js` cache entries/cache name so the PWA
+  gets the new assets.
+
+Typical flow:
+
+```powershell
+node --check web\app.js
+git diff --check
+git add web\index.html web\styles.css web\app.js web\sw.js README.md
+git commit -m "Describe deployment flow"
+git push origin main
+```
+
 ## Food lookup utility
 
 `food_lookup.py` is kept as a small research CLI for checking public food
