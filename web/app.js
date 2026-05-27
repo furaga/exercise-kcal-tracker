@@ -1034,6 +1034,7 @@ function workoutMeasure(workout) {
 function aggregateExercise(workouts) {
   const map = new Map();
   workouts.forEach((workout) => {
+    if (workout.mode !== "strength") return;
     const key = `${workout.mode}:${workout.key}`;
     const measure = workoutMeasure(workout);
     const item = map.get(key) || {
@@ -1072,7 +1073,7 @@ function renderComparisonList() {
   if (!keys.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "今週または先週の記録があると、種目ごとの差分がここに表示されます。";
+    empty.textContent = "今週または先週の筋トレ記録があると、種目ごとの差分がここに表示されます。";
     elements.comparisonList.append(empty);
     return;
   }
@@ -1540,9 +1541,9 @@ function copyLastStrengthSet() {
   } else {
     addSetRow(strengthUsesLoad(key) ? "" : 0, last.reps || 10);
   }
-  elements.strengthDuration.value = last.minutes || "";
-  elements.strengthExtraDetails.open = Boolean(elements.strengthDuration.value);
-  setStatus(`${last.date}の${last.name}をコピーしました。`);
+  elements.strengthDuration.value = "";
+  elements.strengthExtraDetails.open = false;
+  setStatus(`${last.date}の${last.name}をコピーしました。所要時間は自動計算します。`);
   renderPreviews();
 }
 
