@@ -365,6 +365,7 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 14px;
 }
 
@@ -380,6 +381,11 @@ h3 {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 850;
+}
+
+.section-meta {
+  line-height: 1.35;
+  text-align: right;
 }
 
 .panel-subtitle {

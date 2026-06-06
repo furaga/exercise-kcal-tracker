@@ -102,6 +102,7 @@ const elements = {
   statusText: $("#statusText"),
   rateEditor: $("#rateEditor"),
   resetRatesButton: $("#resetRatesButton"),
+  comparisonMeta: $("#comparisonMeta"),
   comparisonList: $("#comparisonList"),
   historyTabs: $("#historyTabs"),
   historyList: $("#historyList"),
@@ -133,6 +134,40 @@ function exerciseDisplayName(rate) {
   return rate.icon ? `${rate.icon} ${rate.label}` : rate.label;
 }
 
+function workoutDateKey(value) {
+  if (!value) return "";
+  if (value instanceof Date) return localDate(value);
+  return String(value).slice(0, 10);
+}
+
+function normalizeWorkout(workout) {
+  const date = workoutDateKey(workout.date);
+  return date ? { ...workout, date } : workout;
+}
+
+function workoutFingerprint(workout) {
+  if (!workout.createdAt) return "";
+  return [workoutDateKey(workout.date), workout.mode, workout.key, workout.createdAt].join("|");
+}
+
+function dedupeWorkouts(workouts) {
+  const seenIds = new Set();
+  const seenFingerprints = new Set();
+  const deduped = [];
+
+  workouts.map(normalizeWorkout).forEach((workout) => {
+    if (workout.id && seenIds.has(workout.id)) return;
+    const fingerprint = workoutFingerprint(workout);
+    if (fingerprint && seenFingerprints.has(fingerprint)) return;
+
+    if (workout.id) seenIds.add(workout.id);
+    if (fingerprint) seenFingerprints.add(fingerprint);
+    deduped.push(workout);
+  });
+
+  return deduped;
+}
+
 function mergeRateGroup(defaultGroup, savedGroup = {}, removedKeys = new Set()) {
   const merged = {};
   Object.entries(defaultGroup).forEach(([key, defaultRate]) => {
@@ -155,7 +190,7 @@ function mergeRateGroup(defaultGroup, savedGroup = {}, removedKeys = new Set()) 
 function normalizeStore(parsed = {}) {
   return {
     weights: parsed.weights || {},
-    workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
+    workouts: dedupeWorkouts(Array.isArray(parsed.workouts) ? parsed.workouts : []),
     rates: {
       strength: mergeRateGroup(defaultStrengthRates, parsed.rates?.strength, deprecatedRateKeys.strength),
       cardio: mergeRateGroup(defaultCardioRates, parsed.rates?.cardio, deprecatedRateKeys.cardio),
@@ -222,6 +257,27 @@ function startOfWeek(key) {
   return localDate(date);
 }
 
+function weekRangeFor(key) {
+  const start = startOfWeek(key);
+  return {
+    start,
+    end: addDays(start, 6),
+  };
+}
+
+function previousWeekRangeFor(key) {
+  const current = weekRangeFor(key);
+  const start = addDays(current.start, -7);
+  return {
+    start,
+    end: addDays(start, 6),
+  };
+}
+
+function formatDateRange(range) {
+  return `${formatShortDate(dateFromKey(range.start))}〜${formatShortDate(dateFromKey(range.end))}`;
+}
+
 function startOfMonth(key) {
   return `${key.slice(0, 7)}-01`;
 }
@@ -247,6 +303,14 @@ function fixed(value, digits = 2) {
 function setStatus(message, tone = "normal") {
   elements.statusText.textContent = message;
   elements.statusText.dataset.tone = tone;
+}
+
+function clearEditingState({ refreshLabel = true, message = "" } = {}) {
+  const wasEditing = Boolean(editingWorkoutId);
+  editingWorkoutId = null;
+  if (wasEditing && refreshLabel) renderSaveButtonLabels();
+  if (wasEditing && message) setStatus(message);
+  return wasEditing;
 }
 
 function setWeightStatus(message, tone = "normal") {
@@ -950,11 +1014,14 @@ function renderSaveButtonLabels() {
 }
 
 function workoutsBetween(startKey, endKey, store = readStore()) {
-  return store.workouts.filter((workout) => workout.date >= startKey && workout.date <= endKey);
+  return store.workouts.filter((workout) => {
+    const date = workoutDateKey(workout.date);
+    return date >= startKey && date <= endKey;
+  });
 }
 
 function workoutsOn(dateKey, store = readStore()) {
-  return store.workouts.filter((workout) => workout.date === dateKey);
+  return store.workouts.filter((workout) => workoutDateKey(workout.date) === dateKey);
 }
 
 function sumCalories(workouts) {
@@ -1002,10 +1069,10 @@ function renderWeekChart(store, weekStart) {
 function renderSummary() {
   const today = localDate();
   const store = readStore();
-  const weekStart = startOfWeek(today);
+  const weekRange = weekRangeFor(today);
   const monthStart = startOfMonth(today);
   const todayWorkouts = workoutsBetween(today, today, store);
-  const weekWorkouts = workoutsBetween(weekStart, today, store);
+  const weekWorkouts = workoutsBetween(weekRange.start, today, store);
   const monthWorkouts = workoutsBetween(monthStart, today, store);
   const weekCalories = sumCalories(weekWorkouts);
 
@@ -1013,7 +1080,7 @@ function renderSummary() {
   elements.todayCalories.textContent = formatNumber(sumCalories(todayWorkouts));
   elements.weekCalories.textContent = formatNumber(weekCalories);
   elements.monthCalories.textContent = formatNumber(sumCalories(monthWorkouts));
-  renderWeekChart(store, weekStart);
+  renderWeekChart(store, weekRange.start);
 }
 
 function workoutMeasure(workout) {
@@ -1061,13 +1128,15 @@ function signedValue(value, unit) {
 function renderComparisonList() {
   const store = readStore();
   const today = localDate();
-  const weekStart = startOfWeek(today);
-  const weekEnd = addDays(weekStart, 6);
-  const previousStart = addDays(weekStart, -7);
-  const previousEnd = addDays(weekStart, -1);
-  const current = aggregateExercise(workoutsBetween(weekStart, weekEnd, store));
-  const previous = aggregateExercise(workoutsBetween(previousStart, previousEnd, store));
+  const weekRange = weekRangeFor(today);
+  const previousRange = previousWeekRangeFor(today);
+  const current = aggregateExercise(workoutsBetween(weekRange.start, weekRange.end, store));
+  const previous = aggregateExercise(workoutsBetween(previousRange.start, previousRange.end, store));
   const keys = Array.from(new Set([...current.keys(), ...previous.keys()]));
+
+  if (elements.comparisonMeta) {
+    elements.comparisonMeta.textContent = `今週 ${formatDateRange(weekRange)} / 先週 ${formatDateRange(previousRange)}`;
+  }
 
   elements.comparisonList.textContent = "";
   if (!keys.length) {
@@ -1175,6 +1244,10 @@ function renderHistoryTabs(dates, byDate) {
     kcal.textContent = calories ? `${formatNumber(calories)} kcal` : "休";
     button.append(day, main, kcal);
     button.addEventListener("click", () => {
+      clearEditingState({
+        refreshLabel: false,
+        message: "編集を終了しました。保存すると新しい記録を作成します。",
+      });
       selectedHistoryDate = date;
       elements.entryDate.value = date;
       loadWeightForDate();
@@ -1398,13 +1471,13 @@ function saveStrength() {
   const date = selectedDate();
   const weight = numberFromInput(elements.bodyWeight);
   if (weight) store.weights[date] = weight;
-  const wasEditing = Boolean(editingWorkoutId);
   const existingIndex = editingWorkoutId
     ? store.workouts.findIndex((workout) => workout.id === editingWorkoutId)
     : -1;
   const existing = existingIndex >= 0 ? store.workouts[existingIndex] : null;
+  const wasEditing = existingIndex >= 0;
   const nextWorkout = {
-    id: existing?.id || editingWorkoutId || uuid(),
+    id: existing?.id || uuid(),
     date,
     mode: "strength",
     key: elements.strengthName.value,
@@ -1449,13 +1522,13 @@ function saveCardio() {
   const date = selectedDate();
   const weight = numberFromInput(elements.bodyWeight);
   if (weight) store.weights[date] = weight;
-  const wasEditing = Boolean(editingWorkoutId);
   const existingIndex = editingWorkoutId
     ? store.workouts.findIndex((workout) => workout.id === editingWorkoutId)
     : -1;
   const existing = existingIndex >= 0 ? store.workouts[existingIndex] : null;
+  const wasEditing = existingIndex >= 0;
   const nextWorkout = {
-    id: existing?.id || editingWorkoutId || uuid(),
+    id: existing?.id || uuid(),
     date,
     mode: "cardio",
     key: elements.cardioName.value,
@@ -1510,18 +1583,18 @@ function saveWeight() {
   renderAll();
 }
 
-function previousWorkoutFor(mode, key) {
+function previousWorkoutFor(mode, key, { excludeId = editingWorkoutId } = {}) {
   const date = selectedDate();
   return readStore()
     .workouts.filter(
       (workout) =>
-        workout.id !== editingWorkoutId &&
+        (!excludeId || workout.id !== excludeId) &&
         workout.mode === mode &&
         workout.key === key &&
-        workout.date <= date,
+        workoutDateKey(workout.date) <= date,
     )
     .sort((a, b) => {
-      const dateOrder = (b.date || "").localeCompare(a.date || "");
+      const dateOrder = workoutDateKey(b.date).localeCompare(workoutDateKey(a.date));
       if (dateOrder) return dateOrder;
       return (b.createdAt || "").localeCompare(a.createdAt || "");
     })[0];
@@ -1529,11 +1602,13 @@ function previousWorkoutFor(mode, key) {
 
 function copyLastStrengthSet() {
   const key = elements.strengthName.value;
-  const last = previousWorkoutFor("strength", key);
+  const excludeId = editingWorkoutId;
+  const last = previousWorkoutFor("strength", key, { excludeId });
   if (!last) {
     setStatus("選択中の日付以前に、同じ筋トレ種目の記録がありません。");
     return;
   }
+  clearEditingState({ refreshLabel: false });
   elements.setList.textContent = "";
   const copiedSets = Array.isArray(last.sets) ? last.sets : [];
   if (copiedSets.length) {
@@ -1549,11 +1624,13 @@ function copyLastStrengthSet() {
 
 function copyLastCardio() {
   const key = elements.cardioName.value;
-  const last = previousWorkoutFor("cardio", key);
+  const excludeId = editingWorkoutId;
+  const last = previousWorkoutFor("cardio", key, { excludeId });
   if (!last) {
     setStatus("選択中の日付以前に、同じ有酸素種目の記録がありません。");
     return;
   }
+  clearEditingState({ refreshLabel: false });
   elements.cardioMinutes.value = last.minutes || "";
   elements.cardioDistance.value = last.distanceKm || last.effectiveRate?.distanceKm || "";
   elements.cardioManualCalories.value = last.manualCalories || last.effectiveRate?.manualCalories || "";
@@ -1563,14 +1640,40 @@ function copyLastCardio() {
 }
 
 function exportJson() {
-  const payload = JSON.stringify(readStore(), null, 2);
+  const store = readStore();
+  const workouts = store.workouts.slice().sort((a, b) => {
+    const dateOrder = workoutDateKey(a.date).localeCompare(workoutDateKey(b.date));
+    if (dateOrder) return dateOrder;
+    return (a.createdAt || "").localeCompare(b.createdAt || "");
+  });
+  const allDates = [
+    ...workouts.map((workout) => workoutDateKey(workout.date)),
+    ...Object.keys(store.weights || {}),
+  ]
+    .filter(Boolean)
+    .sort();
+  const exportStore = {
+    ...store,
+    workouts,
+    export: {
+      scope: "all",
+      exportedAt: new Date().toISOString(),
+      startDate: allDates[0] || null,
+      endDate: allDates[allDates.length - 1] || null,
+      workoutCount: workouts.length,
+    },
+  };
+  const payload = JSON.stringify(exportStore, null, 2);
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `training-log-${localDate()}.json`;
+  link.download = `training-log-all-${localDate().replaceAll("-", "")}.json`;
+  document.body.append(link);
   link.click();
+  link.remove();
   URL.revokeObjectURL(url);
+  setStatus(`全期間の記録${formatNumber(workouts.length)}件をExportしました。`);
 }
 
 function resetRates() {
@@ -1608,12 +1711,24 @@ function clearStrengthDuration() {
 
 function bindEvents() {
   $$(".mode-button").forEach((button) => {
-    button.addEventListener("click", () => setMode(button.dataset.mode));
+    button.addEventListener("click", () => {
+      clearEditingState({
+        refreshLabel: false,
+        message: "編集を終了しました。保存すると新しい記録を作成します。",
+      });
+      setMode(button.dataset.mode);
+    });
   });
 
   elements.googleSignInButton.addEventListener("click", signInWithGoogle);
   elements.signOutButton.addEventListener("click", signOut);
-  elements.entryDate.addEventListener("change", loadWeightForDate);
+  elements.entryDate.addEventListener("change", () => {
+    clearEditingState({
+      refreshLabel: false,
+      message: "編集を終了しました。保存すると新しい記録を作成します。",
+    });
+    loadWeightForDate();
+  });
   elements.bodyWeight.addEventListener("input", () => {
     setWeightStatus("");
     renderPreviews();
