@@ -519,170 +519,6 @@ function rowToRates(rows) {
   return normalizeStore({ rates }).rates;
 }
 
-function diagnosticsEnabled() {
-  return window.location.hash === "#diagnostics";
-}
-
-function ensureDiagnosticsPanel() {
-  let panel = $("#diagnosticsPanel");
-  if (panel) return panel;
-
-  panel = document.createElement("section");
-  panel.id = "diagnosticsPanel";
-  panel.className = "panel diagnostics-panel";
-  const heading = document.createElement("h2");
-  heading.textContent = "DB diagnostics";
-  const output = document.createElement("pre");
-  output.id = "diagnosticsOutput";
-  panel.append(heading, output);
-  document.querySelector(".app-shell")?.prepend(panel);
-  return panel;
-}
-
-function setDiagnosticsOutput(value) {
-  const panel = ensureDiagnosticsPanel();
-  const output = panel.querySelector("#diagnosticsOutput");
-  output.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-}
-
-function removeDiagnosticsPanel() {
-  $("#diagnosticsPanel")?.remove();
-}
-
-function diagnosticSets(sets) {
-  return (Array.isArray(sets) ? sets : [])
-    .map((set) => `${Number(set.weight || 0)}kg x ${Number(set.reps || 0)}`)
-    .join(" / ");
-}
-
-function diagnosticVolume(workout) {
-  return Number(workout.volume || strengthVolume(workout.sets || []) || 0);
-}
-
-function diagnosticWorkout(row) {
-  return {
-    idSuffix: String(row.id || "").slice(-8),
-    date: workoutDateKey(row.date),
-    mode: row.mode,
-    key: row.key,
-    name: row.name,
-    volume: diagnosticVolume(row),
-    sets: diagnosticSets(row.sets),
-    calories: Number(row.calories || 0),
-    minutes: row.minutes === null ? null : Number(row.minutes || 0),
-    createdAt: row.created_at,
-  };
-}
-
-function rowsBetween(rows, startKey, endKey) {
-  return rows.filter((row) => {
-    const date = workoutDateKey(row.date);
-    return date >= startKey && date <= endKey;
-  });
-}
-
-function diagnosticAggregate(rows) {
-  return rows.reduce(
-    (summary, row) => {
-      summary.count += 1;
-      summary.volume += diagnosticVolume(row);
-      summary.calories += Number(row.calories || 0);
-      summary.rows.push(diagnosticWorkout(row));
-      return summary;
-    },
-    { count: 0, volume: 0, calories: 0, rows: [] },
-  );
-}
-
-function duplicateGroups(rows, keyFor) {
-  const groups = new Map();
-  rows.forEach((row) => {
-    const key = keyFor(row);
-    if (!key) return;
-    const group = groups.get(key) || [];
-    group.push(diagnosticWorkout(row));
-    groups.set(key, group);
-  });
-  return Array.from(groups.entries())
-    .filter(([, group]) => group.length > 1)
-    .map(([key, group]) => ({ key, count: group.length, rows: group }));
-}
-
-async function renderDiagnostics() {
-  if (!diagnosticsEnabled()) {
-    removeDiagnosticsPanel();
-    return;
-  }
-
-  setDiagnosticsOutput("Loading DB diagnostics...");
-  if (!supabaseClient || !currentUser) {
-    setDiagnosticsOutput({ status: "not_logged_in" });
-    return;
-  }
-
-  const today = localDate();
-  const weekRange = weekRangeFor(today);
-  const previousRange = previousWeekRangeFor(today);
-  const priorSunday = addDays(previousRange.start, -1);
-  const queryStart = addDays(previousRange.start, -14);
-  const queryEnd = weekRange.end;
-  const { data, error } = await supabaseClient
-    .from("workouts")
-    .select("id,date,mode,key,name,calories,minutes,reps,volume,sets,created_at,body_weight")
-    .order("date", { ascending: true })
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    setDiagnosticsOutput({ status: "query_failed", message: error.message });
-    return;
-  }
-
-  const rows = data || [];
-  const shoulderRows = rows.filter((row) => row.mode === "strength" && row.key === "shoulderPress");
-  const relevantShoulder = rowsBetween(shoulderRows, queryStart, queryEnd);
-  const currentRows = rowsBetween(shoulderRows, weekRange.start, weekRange.end);
-  const previousRows = rowsBetween(shoulderRows, previousRange.start, previousRange.end);
-  const priorSundayRows = rowsBetween(shoulderRows, priorSunday, priorSunday);
-  const previousSundayRows = rowsBetween(shoulderRows, previousRange.end, previousRange.end);
-
-  setDiagnosticsOutput({
-    status: "ok",
-    generatedAt: new Date().toISOString(),
-    userEmail: currentUser.email || null,
-    today,
-    ranges: {
-      currentWeek: weekRange,
-      previousWeek: previousRange,
-      previousSunday: previousRange.end,
-      twoSundaysAgo: priorSunday,
-      queriedShoulderRange: { start: queryStart, end: queryEnd },
-    },
-    rowCounts: {
-      allWorkouts: rows.length,
-      shoulderPressAll: shoulderRows.length,
-      shoulderPressQueriedRange: relevantShoulder.length,
-    },
-    shoulderPress: {
-      currentWeek: diagnosticAggregate(currentRows),
-      previousWeek: diagnosticAggregate(previousRows),
-      previousSundayOnly: diagnosticAggregate(previousSundayRows),
-      twoSundaysAgoOnly: diagnosticAggregate(priorSundayRows),
-      queriedRows: relevantShoulder.map(diagnosticWorkout),
-    },
-    duplicateCandidates: {
-      sameId: duplicateGroups(rows, (row) => row.id || ""),
-      sameCreatedAtExercise: duplicateGroups(
-        rows,
-        (row) => `${workoutDateKey(row.date)}|${row.mode}|${row.key}|${row.created_at || ""}`,
-      ),
-      sameDayExerciseSets: duplicateGroups(
-        rows,
-        (row) => `${workoutDateKey(row.date)}|${row.mode}|${row.key}|${diagnosticVolume(row)}|${diagnosticSets(row.sets)}`,
-      ),
-    },
-  });
-}
-
 async function deleteMissingRows(table, keyColumn, localKeys) {
   const { data, error } = await supabaseClient
     .from(table)
@@ -789,7 +625,6 @@ async function loadUserData() {
     renderAll();
     cloudReady = true;
     await syncCloud();
-    await renderDiagnostics();
   } catch (error) {
     cloudReady = false;
     setAuthStatus(`Supabaseの読み込みに失敗しました: ${error.message}`);
@@ -819,7 +654,6 @@ async function initAuth() {
     } else {
       cloudReady = false;
       renderAll();
-      renderDiagnostics();
     }
   });
 }
@@ -1950,5 +1784,4 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-window.addEventListener("hashchange", renderDiagnostics);
 initAuth();

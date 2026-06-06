@@ -392,19 +392,6 @@ h3 {
   margin: 10px 0 0;
 }
 
-.diagnostics-panel pre {
-  max-height: 70vh;
-  overflow: auto;
-  margin: 12px 0 0;
-  padding: 12px;
-  border-radius: 8px;
-  background: #0f1f1c;
-  color: #e8fff8;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-
 .date-input,
 .primary-button,
 .secondary-button,
