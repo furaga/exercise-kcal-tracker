@@ -168,6 +168,10 @@ function dedupeWorkouts(workouts) {
   return deduped;
 }
 
+function normalizeDeletedWorkoutIds(ids = []) {
+  return Array.from(new Set(Array.isArray(ids) ? ids.filter(Boolean).map(String) : [])).slice(-200);
+}
+
 function mergeRateGroup(defaultGroup, savedGroup = {}, removedKeys = new Set()) {
   const merged = {};
   Object.entries(defaultGroup).forEach(([key, defaultRate]) => {
@@ -191,6 +195,7 @@ function normalizeStore(parsed = {}) {
   return {
     weights: parsed.weights || {},
     workouts: dedupeWorkouts(Array.isArray(parsed.workouts) ? parsed.workouts : []),
+    deletedWorkoutIds: normalizeDeletedWorkoutIds(parsed.deletedWorkoutIds),
     rates: {
       strength: mergeRateGroup(defaultStrengthRates, parsed.rates?.strength, deprecatedRateKeys.strength),
       cardio: mergeRateGroup(defaultCardioRates, parsed.rates?.cardio, deprecatedRateKeys.cardio),
@@ -596,14 +601,19 @@ async function loadCloudStore() {
   });
   const remoteWorkouts = (workoutsResult.data || []).map(rowToWorkout);
   const remoteRates = rowToRates(ratesResult.data || []);
+  const deletedWorkoutIds = new Set(local.deletedWorkoutIds || []);
+  const filteredRemoteWorkouts = remoteWorkouts.filter((workout) => !deletedWorkoutIds.has(workout.id));
   const remoteWorkoutIds = new Set(remoteWorkouts.map((workout) => workout.id));
 
   return normalizeStore({
     weights: { ...local.weights, ...remoteWeights },
     workouts: [
-      ...remoteWorkouts,
-      ...local.workouts.filter((workout) => !remoteWorkoutIds.has(workout.id)),
+      ...filteredRemoteWorkouts,
+      ...local.workouts.filter(
+        (workout) => !remoteWorkoutIds.has(workout.id) && !deletedWorkoutIds.has(workout.id),
+      ),
     ],
+    deletedWorkoutIds: local.deletedWorkoutIds,
     rates: {
       strength: { ...local.rates.strength, ...remoteRates.strength },
       cardio: { ...local.rates.cardio, ...remoteRates.cardio },
@@ -1288,6 +1298,7 @@ function loadWorkoutForEdit(workout) {
 function deleteWorkout(workout) {
   const store = readStore();
   store.workouts = store.workouts.filter((item) => item.id !== workout.id);
+  store.deletedWorkoutIds = normalizeDeletedWorkoutIds([...(store.deletedWorkoutIds || []), workout.id]);
   if (editingWorkoutId === workout.id) editingWorkoutId = null;
   writeStore(store);
   renderAll();
