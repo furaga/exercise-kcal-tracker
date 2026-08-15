@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=64">
+    <link rel="stylesheet" href="./styles.css?v=65">
   </head>
   <body>
     <main class="app-shell">
@@ -205,11 +205,12 @@
         <div class="section-heading">
           <div>
             <p class="section-kicker">Compare</p>
-            <h2 id="comparisonTitle">vs 先週（種目別）</h2>
+            <h2 id="comparisonTitle">週次比較</h2>
           </div>
           <span class="section-meta" id="comparisonMeta">今週 / 先週</span>
         </div>
-        <p class="panel-subtitle">漸進性過負荷の追跡</p>
+        <p class="panel-subtitle">今週・先週・先々週の種目量と消費カロリーを比較</p>
+        <div class="comparison-week-summary" id="comparisonWeekSummary" aria-label="各週の消費カロリー"></div>
         <div class="comparison-list" id="comparisonList"></div>
       </section>
 
@@ -258,6 +259,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=64" defer></script>
+    <script src="./app.js?v=65" defer></script>
   </body>
 </html>

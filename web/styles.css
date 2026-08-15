@@ -1003,6 +1003,32 @@ select:focus,
   gap: 10px;
 }
 
+.comparison-week-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.comparison-week-total {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.comparison-week-total small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.comparison-week-total strong {
+  color: var(--teal-dark);
+  font-size: 0.92rem;
+}
+
 .comparison-item {
   display: grid;
   gap: 10px;
@@ -1052,15 +1078,51 @@ select:focus,
   gap: 7px;
 }
 
-.comparison-bars .bar-fill {
+.comparison-week {
+  display: grid;
+  gap: 4px;
+}
+
+.comparison-week-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comparison-week-label,
+.comparison-week-value {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.comparison-week-value {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.comparison-week-track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #edf5f2;
+}
+
+.comparison-week-track .bar-fill {
+  display: block;
   width: var(--bar, 0%);
   height: 5px;
   border-radius: 8px;
   background: var(--teal);
 }
 
-.comparison-bars .bar-fill.previous {
+.comparison-week-track .bar-fill.previous {
   background: #cbdad5;
+}
+
+.comparison-week-track .bar-fill.two-weeks-ago {
+  background: #9cbdb5;
 }
 
 .comparison-foot {

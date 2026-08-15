@@ -103,6 +103,7 @@ const elements = {
   rateEditor: $("#rateEditor"),
   resetRatesButton: $("#resetRatesButton"),
   comparisonMeta: $("#comparisonMeta"),
+  comparisonWeekSummary: $("#comparisonWeekSummary"),
   comparisonList: $("#comparisonList"),
   historyTabs: $("#historyTabs"),
   historyList: $("#historyList"),
@@ -271,8 +272,12 @@ function weekRangeFor(key) {
 }
 
 function previousWeekRangeFor(key) {
+  return weekRangeOffsetFor(key, 1);
+}
+
+function weekRangeOffsetFor(key, weeksAgo) {
   const current = weekRangeFor(key);
-  const start = addDays(current.start, -7);
+  const start = addDays(current.start, -7 * weeksAgo);
   return {
     start,
     end: addDays(start, 6),
@@ -1111,7 +1116,6 @@ function workoutMeasure(workout) {
 function aggregateExercise(workouts) {
   const map = new Map();
   workouts.forEach((workout) => {
-    if (workout.mode !== "strength") return;
     const key = `${workout.mode}:${workout.key}`;
     const measure = workoutMeasure(workout);
     const item = map.get(key) || {
@@ -1138,49 +1142,85 @@ function signedValue(value, unit) {
 function renderComparisonList() {
   const store = readStore();
   const today = localDate();
-  const weekRange = weekRangeFor(today);
-  const previousRange = previousWeekRangeFor(today);
-  const current = aggregateExercise(workoutsBetween(weekRange.start, weekRange.end, store));
-  const previous = aggregateExercise(workoutsBetween(previousRange.start, previousRange.end, store));
-  const keys = Array.from(new Set([...current.keys(), ...previous.keys()]));
+  const periods = [
+    { label: "今週", range: weekRangeFor(today) },
+    { label: "先週", range: weekRangeOffsetFor(today, 1) },
+    { label: "先々週", range: weekRangeOffsetFor(today, 2) },
+  ];
+  const aggregates = periods.map(({ range }) =>
+    aggregateExercise(workoutsBetween(range.start, range.end, store)),
+  );
+  const keys = Array.from(new Set(aggregates.flatMap((aggregate) => Array.from(aggregate.keys()))));
 
   if (elements.comparisonMeta) {
-    elements.comparisonMeta.textContent = `今週 ${formatDateRange(weekRange)} / 先週 ${formatDateRange(previousRange)}`;
+    elements.comparisonMeta.textContent = periods
+      .map(({ label, range }) => `${label} ${formatDateRange(range)}`)
+      .join(" / ");
+  }
+
+  if (elements.comparisonWeekSummary) {
+    elements.comparisonWeekSummary.textContent = "";
+    periods.forEach(({ label, range }) => {
+      const item = document.createElement("div");
+      item.className = "comparison-week-total";
+
+      const title = document.createElement("small");
+      title.textContent = label;
+      const calories = document.createElement("strong");
+      calories.textContent = `${formatNumber(sumCalories(workoutsBetween(range.start, range.end, store)))} kcal`;
+      item.append(title, calories);
+      elements.comparisonWeekSummary.append(item);
+    });
   }
 
   elements.comparisonList.textContent = "";
   if (!keys.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "今週または先週の筋トレ記録があると、種目ごとの差分がここに表示されます。";
+    empty.textContent = "今週・先週・先々週の運動記録があると、種目ごとの比較がここに表示されます。";
     elements.comparisonList.append(empty);
     return;
   }
 
   const items = keys
     .map((key) => {
-      const now = current.get(key);
-      const before = previous.get(key);
-      const unit = now?.unit || before?.unit || "";
-      const currentValue = now?.value || 0;
-      const previousValue = before?.value || 0;
+      const values = aggregates.map((aggregate) => {
+        const item = aggregate.get(key);
+        return {
+          value: item?.value || 0,
+          calories: item?.calories || 0,
+          unit: item?.unit || "",
+          mode: item?.mode,
+          name: item?.name,
+        };
+      });
+      const current = values[0];
+      const previous = values[1];
+      const unit = values.find((value) => value.unit)?.unit || "";
+      const currentValue = current.value;
+      const previousValue = previous.value;
       const change = currentValue - previousValue;
       const percent = previousValue ? Math.round((change / previousValue) * 100) : currentValue ? 100 : 0;
       return {
         key,
-        mode: now?.mode || before?.mode,
-        name: now?.name || before?.name,
+        mode: values.find((value) => value.mode)?.mode,
+        name: values.find((value) => value.name)?.name,
         unit,
+        values,
         currentValue,
         previousValue,
         change,
         percent,
       };
     })
-    .sort((a, b) => b.currentValue + b.previousValue - (a.currentValue + a.previousValue))
+    .sort(
+      (a, b) =>
+        b.values.reduce((sum, value) => sum + value.value, 0) -
+        a.values.reduce((sum, value) => sum + value.value, 0),
+    )
     .slice(0, 4);
 
-  const maxValue = Math.max(1, ...items.flatMap((item) => [item.currentValue, item.previousValue]));
+  const maxValue = Math.max(1, ...items.flatMap((item) => item.values.map((value) => value.value)));
   items.forEach((item) => {
     const card = document.createElement("article");
     card.className = "comparison-item";
@@ -1199,18 +1239,35 @@ function renderComparisonList() {
 
     const bars = document.createElement("div");
     bars.className = "comparison-bars";
-    const currentBar = document.createElement("span");
-    currentBar.className = "bar-fill";
-    currentBar.style.setProperty("--bar", `${Math.max(4, (item.currentValue / maxValue) * 100)}%`);
-    const previousBar = document.createElement("span");
-    previousBar.className = "bar-fill previous";
-    previousBar.style.setProperty("--bar", `${Math.max(4, (item.previousValue / maxValue) * 100)}%`);
-    bars.append(currentBar, previousBar);
+    item.values.forEach((value, index) => {
+      const week = document.createElement("div");
+      week.className = "comparison-week";
+
+      const weekHead = document.createElement("div");
+      weekHead.className = "comparison-week-head";
+      const weekLabel = document.createElement("span");
+      weekLabel.className = "comparison-week-label";
+      weekLabel.textContent = periods[index].label;
+      const weekValue = document.createElement("span");
+      weekValue.className = "comparison-week-value";
+      weekValue.textContent = `${formatNumber(value.value)}${item.unit} / ${formatNumber(value.calories)} kcal`;
+      weekHead.append(weekLabel, weekValue);
+
+      const track = document.createElement("div");
+      track.className = "comparison-week-track";
+      const bar = document.createElement("span");
+      bar.className = `bar-fill ${index === 0 ? "current" : index === 1 ? "previous" : "two-weeks-ago"}`;
+      bar.style.setProperty("--bar", `${value.value ? Math.max(4, (value.value / maxValue) * 100) : 3}%`);
+      track.append(bar);
+
+      week.append(weekHead, track);
+      bars.append(week);
+    });
 
     const foot = document.createElement("div");
     foot.className = "comparison-foot";
     const percent = item.previousValue ? `${item.percent > 0 ? "+" : ""}${item.percent}%` : "new";
-    foot.textContent = `${formatNumber(item.currentValue)}${item.unit} / ${formatNumber(item.previousValue)}${item.unit} ・ ${percent}`;
+    foot.textContent = `今週 − 先週: ${signedValue(item.change, item.unit)} ・ ${percent}`;
 
     card.append(head, bars, foot);
     elements.comparisonList.append(card);
@@ -1259,8 +1316,7 @@ function renderHistoryTabs(dates, byDate) {
         message: "編集を終了しました。保存すると新しい記録を作成します。",
       });
       selectedHistoryDate = date;
-      elements.entryDate.value = date;
-      loadWeightForDate();
+      renderHistory();
     });
     elements.historyTabs.append(button);
   });
@@ -1571,10 +1627,6 @@ function saveCardio() {
 }
 
 function loadWeightForDate() {
-  const byDate = groupedWorkoutsByDate();
-  if (byDate.has(selectedDate())) {
-    selectedHistoryDate = selectedDate();
-  }
   const latest = latestWeightOn(selectedDate());
   elements.bodyWeight.value = latest?.value ? latest.value.toFixed(1) : "";
   setWeightStatus("");
