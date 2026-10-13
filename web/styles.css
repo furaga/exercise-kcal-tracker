@@ -39,6 +39,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
 }
@@ -565,6 +566,7 @@ h3 {
 }
 
 input,
+textarea,
 select {
   width: 100%;
   min-height: 48px;
@@ -591,10 +593,33 @@ select {
 }
 
 input:focus,
+textarea:focus,
 select:focus,
 .date-input:focus {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px rgba(120, 198, 173, 0.18);
+}
+
+.workout-notes {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.workout-notes textarea {
+  padding: 10px 12px;
+  resize: vertical;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.history-notes {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .number-stepper {

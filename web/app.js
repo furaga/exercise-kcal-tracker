@@ -21,6 +21,7 @@ let cloudSyncTimer = null;
 let suppressCloudSync = false;
 let selectedHistoryDate = null;
 let editingWorkoutId = null;
+const noteDrafts = { strength: new Map(), cardio: new Map() };
 
 const defaultStrengthRates = {
   pushup: { label: "腕立て伏せ", icon: "💪", kcalPerRep: 0.28, kcalPerMinute: 1.8 },
@@ -71,6 +72,7 @@ const elements = {
   strengthForm: $("#strengthForm"),
   cardioForm: $("#cardioForm"),
   strengthName: $("#strengthName"),
+  strengthNotes: $("#strengthNotes"),
   strengthExtraDetails: $("#strengthExtraDetails"),
   strengthDurationSummary: $("#strengthDurationSummary"),
   strengthDuration: $("#strengthDuration"),
@@ -85,6 +87,7 @@ const elements = {
   strengthCalories: $("#strengthCalories"),
   strengthSaveCalories: $("#strengthSaveCalories"),
   cardioName: $("#cardioName"),
+  cardioNotes: $("#cardioNotes"),
   cardioMinutes: $("#cardioMinutes"),
   cardioExtraDetails: $("#cardioExtraDetails"),
   cardioExtraSummary: $("#cardioExtraSummary"),
@@ -455,7 +458,8 @@ function workoutToRow(workout) {
     volume: workout.volume ?? null,
     sets: workout.sets ?? null,
     base_rate: workout.baseRate ?? null,
-    effective_rate: workout.effectiveRate ?? null,
+    // Keep per-workout metadata in the existing JSON column, as with cardio extras.
+    effective_rate: { ...(workout.effectiveRate || {}), notes: workout.notes || "" },
     body_weight: workout.bodyWeight ?? null,
     created_at: workout.createdAt || new Date().toISOString(),
   };
@@ -478,6 +482,7 @@ function rowToWorkout(row) {
     sets: row.sets || [],
     baseRate: row.base_rate || {},
     effectiveRate,
+    notes: effectiveRate.notes || "",
     distanceKm: distanceKm === null ? null : Number(distanceKm),
     manualCalories: manualCalories === null ? null : Number(manualCalories),
     bodyWeight: row.body_weight === null ? null : Number(row.body_weight),
@@ -1281,7 +1286,8 @@ function workoutDetail(workout) {
     return `${workout.minutes}分${distance}${manual}`;
   }
   const sets = (workout.sets || []).map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
-  return `${sets || formatNumber(workout.reps)} / ${fixed(workout.minutes, 1)}分`;
+  const setCount = workout.sets?.length;
+  return `${sets || `${formatNumber(workout.reps)}回`} / ${setCount ? `${setCount}セット` : "セット数未記録"}`;
 }
 
 function groupedWorkoutsByDate(store = readStore()) {
@@ -1347,6 +1353,7 @@ function loadWorkoutForEdit(workout) {
   }
 
   renderPreviews();
+  setWorkoutNotes(workout.mode, workout.notes || "");
   setStatus(`${workout.name}を編集中です。保存すると履歴を更新します。`);
   document.querySelector(".entry-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1420,6 +1427,12 @@ function renderHistory() {
     detail.className = "history-detail";
     detail.textContent = workoutDetail(workout);
     content.append(title, detail);
+    if (workout.notes) {
+      const notes = document.createElement("p");
+      notes.className = "history-detail history-notes";
+      notes.textContent = `備考: ${workout.notes}`;
+      content.append(notes);
+    }
 
     const kcal = document.createElement("span");
     kcal.className = "history-kcal";
@@ -1548,6 +1561,7 @@ function saveStrength() {
     date,
     mode: "strength",
     key: elements.strengthName.value,
+    notes: elements.strengthNotes.value.trim(),
     name: estimate.rate.label,
     sets: estimate.sets,
     reps: estimate.reps,
@@ -1572,6 +1586,7 @@ function saveStrength() {
   elements.setList.textContent = "";
   elements.strengthDuration.value = "";
   elements.strengthExtraDetails.open = false;
+  setWorkoutNotes("strength", "");
   addSetRow();
   addSetRow();
   addSetRow();
@@ -1599,6 +1614,7 @@ function saveCardio() {
     date,
     mode: "cardio",
     key: elements.cardioName.value,
+    notes: elements.cardioNotes.value.trim(),
     name: estimate.rate.label,
     minutes: estimate.minutes,
     distanceKm: estimate.distanceKm,
@@ -1620,6 +1636,7 @@ function saveCardio() {
   setStatus(`${estimate.rate.label}を${wasEditing ? "更新" : "保存"}しました。`);
   editingWorkoutId = null;
   elements.cardioMinutes.value = "30";
+  setWorkoutNotes("cardio", "");
   elements.cardioDistance.value = "";
   elements.cardioManualCalories.value = "";
   elements.cardioExtraDetails.open = false;
@@ -1682,6 +1699,7 @@ function copyLastStrengthSet() {
   elements.strengthDuration.value = "";
   elements.strengthExtraDetails.open = false;
   setStatus(`${last.date}の${last.name}をコピーしました。所要時間は自動計算します。`);
+  setWorkoutNotes("strength", last.notes || "");
   renderPreviews();
 }
 
@@ -1699,6 +1717,7 @@ function copyLastCardio() {
   elements.cardioManualCalories.value = last.manualCalories || last.effectiveRate?.manualCalories || "";
   elements.cardioExtraDetails.open = Boolean(elements.cardioDistance.value || elements.cardioManualCalories.value);
   setStatus(`${last.date}の${last.name}をコピーしました。`);
+  setWorkoutNotes("cardio", last.notes || "");
   renderPreviews();
 }
 
@@ -1772,7 +1791,23 @@ function clearStrengthDuration() {
   renderPreviews();
 }
 
+function setWorkoutNotes(mode, notes) {
+  elements[`${mode}Notes`].value = notes;
+  noteDrafts[mode].set(elements[`${mode}Name`].value, notes);
+}
+
 function bindEvents() {
+  ["strength", "cardio"].forEach((mode) => {
+    elements[`${mode}Notes`].addEventListener("input", () => {
+      noteDrafts[mode].set(elements[`${mode}Name`].value, elements[`${mode}Notes`].value);
+    });
+    elements[`${mode}Name`].addEventListener("change", () => {
+      clearEditingState({
+        message: "編集を終了しました。保存すると新しい記録を作成します。",
+      });
+      setWorkoutNotes(mode, noteDrafts[mode].get(elements[`${mode}Name`].value) || "");
+    });
+  });
   $$(".mode-button").forEach((button) => {
     button.addEventListener("click", () => {
       clearEditingState({

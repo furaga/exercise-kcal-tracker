@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=65">
+    <link rel="stylesheet" href="./styles.css?v=66">
   </head>
   <body>
     <main class="app-shell">
@@ -123,6 +123,11 @@
             </div>
           </details>
 
+          <label class="workout-notes">
+            <span>この種目の備考（任意）</span>
+            <textarea id="cardioNotes" rows="2" placeholder="例：使用したバイクの種類、負荷設定など"></textarea>
+          </label>
+
           <div class="preview-strip" aria-label="有酸素の概算">
             <div>
               <span id="cardioRate">0</span>
@@ -175,6 +180,11 @@
           <div class="set-actions">
             <button class="secondary-button" id="addSetButton" type="button">セット追加</button>
           </div>
+
+          <label class="workout-notes">
+            <span>この種目の備考（任意）</span>
+            <textarea id="strengthNotes" rows="2" placeholder="例：使用したマシンの種類、補助あり、補助重量20kgなど"></textarea>
+          </label>
 
           <div class="preview-strip" aria-label="筋トレの概算">
             <div>
@@ -259,6 +269,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=65" defer></script>
+    <script src="./app.js?v=66" defer></script>
   </body>
 </html>
