@@ -1,9 +1,9 @@
-const cacheName = "training-log-prototype-v42";
+const cacheName = "training-log-prototype-v43";
 const assets = [
   "./",
   "./index.html",
-  "./styles.css?v=69",
-  "./app.js?v=69",
+  "./styles.css?v=70",
+  "./app.js?v=70",
   "./vendor/supabase.js",
   "./manifest.webmanifest",
   "./icon.svg",

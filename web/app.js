@@ -1334,7 +1334,8 @@ function renderBestRecords() {
   const store = readStore();
   elements.bestRecordsList.textContent = "";
   const keys = Array.from(new Set(store.workouts.filter((workout) => workout.mode === "strength").map((workout) => workout.key)));
-  const records = keys.map((key) => bestStrengthWorkoutFor(key, store)).filter(Boolean);
+  const records = keys.map((key) => bestStrengthWorkoutFor(key, store)).filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, "ja"));
   if (!records.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
