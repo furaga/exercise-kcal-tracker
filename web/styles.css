@@ -1367,6 +1367,7 @@ select:focus,
 
 .history-set {
   display: inline-block;
+  white-space: nowrap;
   padding: 5px 9px;
   border-radius: 6px;
   background: var(--soft);

@@ -1286,7 +1286,7 @@ function workoutDetail(workout) {
     const manual = workout.manualCalories !== null && workout.manualCalories !== undefined ? "・表示kcal" : "";
     return `${workout.minutes}分${distance}${manual}`;
   }
-  return strengthSetGroups(workout).join(" ／ ");
+  return strengthSetEntries(workout).join(" ／ ");
 }
 
 function strengthSetLabel(set, key) {
@@ -1294,16 +1294,13 @@ function strengthSetLabel(set, key) {
   return `${load} × ${formatNumber(Number(set.reps))}回`;
 }
 
-function strengthSetGroups(workout) {
-  const groups = [];
-  (workout.sets || []).forEach((set) => {
-    const label = strengthSetLabel(set, workout.key);
-    const previous = groups[groups.length - 1];
-    if (previous?.label === label) previous.count += 1;
-    else groups.push({ label, count: 1 });
-  });
-  return groups.length
-    ? groups.map(({ label, count }) => `${label} × ${count}セット`)
+function strengthSetEntries(workout) {
+  const sets = workout.sets || [];
+  return sets.length
+    ? sets.map((set, index) => {
+      const number = index < 20 ? String.fromCodePoint(0x2460 + index) : `(${index + 1})`;
+      return `${number} ${strengthSetLabel(set, workout.key)}`;
+    })
     : [`${formatNumber(workout.reps)}回（セット数未記録）`];
 }
 
@@ -1529,7 +1526,7 @@ function renderHistory() {
     detail.className = "history-detail";
     if (workout.mode === "strength") {
       detail.classList.add("history-sets");
-      strengthSetGroups(workout).forEach((label) => {
+      strengthSetEntries(workout).forEach((label) => {
         const set = document.createElement("span");
         set.className = "history-set";
         set.textContent = label;
