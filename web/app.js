@@ -1286,9 +1286,25 @@ function workoutDetail(workout) {
     const manual = workout.manualCalories !== null && workout.manualCalories !== undefined ? "・表示kcal" : "";
     return `${workout.minutes}分${distance}${manual}`;
   }
-  const sets = (workout.sets || []).map((set) => `${set.weight}kg x ${set.reps}`).join(" / ");
-  const setCount = workout.sets?.length;
-  return `${sets || `${formatNumber(workout.reps)}回`} / ${setCount ? `${setCount}セット` : "セット数未記録"}`;
+  return strengthSetGroups(workout).join(" ／ ");
+}
+
+function strengthSetLabel(set, key) {
+  const load = !strengthUsesLoad(key) && !Number(set.weight) ? "自重" : `${formatNumber(Number(set.weight || 0))}kg`;
+  return `${load} × ${formatNumber(Number(set.reps))}回`;
+}
+
+function strengthSetGroups(workout) {
+  const groups = [];
+  (workout.sets || []).forEach((set) => {
+    const label = strengthSetLabel(set, workout.key);
+    const previous = groups[groups.length - 1];
+    if (previous?.label === label) previous.count += 1;
+    else groups.push({ label, count: 1 });
+  });
+  return groups.length
+    ? groups.map(({ label, count }) => `${label} × ${count}セット`)
+    : [`${formatNumber(workout.reps)}回（セット数未記録）`];
 }
 
 function bestStrengthSet(workout) {
@@ -1330,14 +1346,13 @@ function renderBestRecords() {
   table.className = "best-records-table";
   table.setAttribute("aria-label", "種目ごとのベスト記録");
   const head = table.createTHead().insertRow();
-  ["種目", "記録日", "ベストセット", "全セット"].forEach((label) => {
+  ["種目", "ベストセット", "全セット", "記録日"].forEach((label) => {
     const cell = document.createElement("th");
     cell.scope = "col";
     cell.textContent = label;
     head.append(cell);
   });
   const body = table.createTBody();
-  const setLabel = (set, key) => `${!strengthUsesLoad(key) && !Number(set.weight) ? "自重" : `${set.weight || 0} kg`} × ${set.reps}回`;
   records.forEach((workout) => {
     const best = bestStrengthSet(workout);
     const row = body.insertRow();
@@ -1345,14 +1360,9 @@ function renderBestRecords() {
     name.scope = "row";
     name.textContent = workout.name;
     row.append(name);
-    const date = row.insertCell();
-    const time = document.createElement("time");
-    time.dateTime = workout.date;
-    time.textContent = workout.date.replaceAll("-", "/");
-    date.append(time);
     const result = row.insertCell();
     result.className = "best-record-result";
-    result.textContent = setLabel(best, workout.key);
+    result.textContent = strengthSetLabel(best, workout.key);
     const detailCell = row.insertCell();
     const details = document.createElement("details");
     const summary = document.createElement("summary");
@@ -1361,7 +1371,7 @@ function renderBestRecords() {
     const sets = document.createElement("ol");
     workout.sets.forEach((set) => {
       const item = document.createElement("li");
-      item.textContent = setLabel(set, workout.key);
+      item.textContent = strengthSetLabel(set, workout.key);
       sets.append(item);
     });
     details.append(sets);
@@ -1372,6 +1382,11 @@ function renderBestRecords() {
       details.append(notes);
     }
     detailCell.append(details);
+    const date = row.insertCell();
+    const time = document.createElement("time");
+    time.dateTime = workout.date;
+    time.textContent = workout.date.replaceAll("-", "/");
+    date.append(time);
   });
   elements.bestRecordsList.append(table);
 }
@@ -1509,9 +1524,19 @@ function renderHistory() {
     title.className = "history-title";
     title.textContent = workout.name;
 
-    const detail = document.createElement("p");
+    const detail = document.createElement("div");
     detail.className = "history-detail";
-    detail.textContent = workoutDetail(workout);
+    if (workout.mode === "strength") {
+      detail.classList.add("history-sets");
+      strengthSetGroups(workout).forEach((label) => {
+        const set = document.createElement("span");
+        set.className = "history-set";
+        set.textContent = label;
+        detail.append(set);
+      });
+    } else {
+      detail.textContent = workoutDetail(workout);
+    }
     content.append(title, detail);
     if (workout.notes) {
       const notes = document.createElement("p");

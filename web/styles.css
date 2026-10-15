@@ -1358,6 +1358,24 @@ select:focus,
   line-height: 1.45;
 }
 
+.history-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.history-set {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .history-kcal {
   color: var(--teal);
   font-size: 0.78rem;

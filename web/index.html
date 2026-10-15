@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=68">
+    <link rel="stylesheet" href="./styles.css?v=69">
   </head>
   <body>
     <main class="app-shell">
@@ -222,6 +222,20 @@
         <div class="best-records-scroll" id="bestRecordsList" tabindex="0" role="region" aria-label="ベスト記録一覧（横スクロール可能）"></div>
       </section>
 
+      <section class="panel history-panel" aria-labelledby="historyTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">History</p>
+            <h2 id="historyTitle">運動履歴</h2>
+          </div>
+          <div class="history-actions">
+            <button class="secondary-button compact" id="exportButton" type="button">Export</button>
+          </div>
+        </div>
+        <div class="history-tabs" id="historyTabs" aria-label="日付選択"></div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
       <details class="panel comparison-panel" aria-labelledby="comparisonTitle">
         <summary class="settings-summary">
           <div>
@@ -237,20 +251,6 @@
         <div class="comparison-list" id="comparisonList"></div>
         </div>
       </details>
-
-      <section class="panel history-panel" aria-labelledby="historyTitle">
-        <div class="section-heading">
-          <div>
-            <p class="section-kicker">History</p>
-            <h2 id="historyTitle">運動履歴</h2>
-          </div>
-          <div class="history-actions">
-            <button class="secondary-button compact" id="exportButton" type="button">Export</button>
-          </div>
-        </div>
-        <div class="history-tabs" id="historyTabs" aria-label="日付選択"></div>
-        <div class="history-list" id="historyList"></div>
-      </section>
 
       <section class="panel weight-panel" aria-labelledby="weightTitle">
         <div class="subtle-weight">
@@ -283,6 +283,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=68" defer></script>
+    <script src="./app.js?v=69" defer></script>
   </body>
 </html>
