@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icon.svg">
-    <link rel="stylesheet" href="./styles.css?v=66">
+    <link rel="stylesheet" href="./styles.css?v=68">
   </head>
   <body>
     <main class="app-shell">
@@ -157,7 +157,7 @@
                 <span>種目</span>
                 <select id="strengthName"></select>
               </label>
-              <button class="secondary-button compact ghost copy-button" id="copyLastStrengthButton" type="button" title="選択中の日付以前の同じ種目をコピー">前回コピー</button>
+              <button class="secondary-button compact ghost copy-button" id="copyBestStrengthButton" type="button" title="全履歴から重量・回数・日付の順で選んだ記録の全セットと備考をコピー">自己ベスト</button>
             </div>
           </div>
 
@@ -211,18 +211,32 @@
         <p class="status" id="statusText" role="status"></p>
       </section>
 
-      <section class="panel comparison-panel" aria-labelledby="comparisonTitle">
+      <section class="panel best-records-panel" aria-labelledby="bestRecordsTitle">
         <div class="section-heading">
+          <div>
+            <p class="section-kicker">Personal best</p>
+            <h2 id="bestRecordsTitle">ベスト記録</h2>
+          </div>
+        </div>
+        <p class="panel-subtitle">重量 → 回数 → 日付の新しい順で選出。詳細でコピー対象の全セットと備考を確認できます。</p>
+        <div class="best-records-scroll" id="bestRecordsList" tabindex="0" role="region" aria-label="ベスト記録一覧（横スクロール可能）"></div>
+      </section>
+
+      <details class="panel comparison-panel" aria-labelledby="comparisonTitle">
+        <summary class="settings-summary">
           <div>
             <p class="section-kicker">Compare</p>
             <h2 id="comparisonTitle">週次比較</h2>
           </div>
-          <span class="section-meta" id="comparisonMeta">今週 / 先週</span>
-        </div>
+          <span class="settings-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="settings-body">
+        <span class="section-meta" id="comparisonMeta">今週 / 先週</span>
         <p class="panel-subtitle">今週・先週・先々週の種目量と消費カロリーを比較</p>
         <div class="comparison-week-summary" id="comparisonWeekSummary" aria-label="各週の消費カロリー"></div>
         <div class="comparison-list" id="comparisonList"></div>
-      </section>
+        </div>
+      </details>
 
       <section class="panel history-panel" aria-labelledby="historyTitle">
         <div class="section-heading">
@@ -269,6 +283,6 @@
     </main>
 
     <script src="./vendor/supabase.js"></script>
-    <script src="./app.js?v=66" defer></script>
+    <script src="./app.js?v=68" defer></script>
   </body>
 </html>

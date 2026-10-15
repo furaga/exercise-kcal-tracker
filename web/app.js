@@ -81,7 +81,7 @@ const elements = {
   setList: $("#setList"),
   addSetButton: $("#addSetButton"),
   copyLastCardioButton: $("#copyLastCardioButton"),
-  copyLastStrengthButton: $("#copyLastStrengthButton"),
+  copyBestStrengthButton: $("#copyBestStrengthButton"),
   strengthReps: $("#strengthReps"),
   strengthMinutes: $("#strengthMinutes"),
   strengthCalories: $("#strengthCalories"),
@@ -108,6 +108,7 @@ const elements = {
   comparisonMeta: $("#comparisonMeta"),
   comparisonWeekSummary: $("#comparisonWeekSummary"),
   comparisonList: $("#comparisonList"),
+  bestRecordsList: $("#bestRecordsList"),
   historyTabs: $("#historyTabs"),
   historyList: $("#historyList"),
   strengthSubmitButton: $("#strengthForm .primary-button"),
@@ -1290,6 +1291,91 @@ function workoutDetail(workout) {
   return `${sets || `${formatNumber(workout.reps)}回`} / ${setCount ? `${setCount}セット` : "セット数未記録"}`;
 }
 
+function bestStrengthSet(workout) {
+  return (workout.sets || []).filter((set) => Number(set.reps) > 0).reduce((best, set) => {
+    if (!best || Number(set.weight || 0) > Number(best.weight || 0) ||
+        (Number(set.weight || 0) === Number(best.weight || 0) && Number(set.reps) > Number(best.reps))) {
+      return set;
+    }
+    return best;
+  }, null);
+}
+
+function bestStrengthWorkoutFor(key, store = readStore()) {
+  return store.workouts
+    .filter((workout) => workout.mode === "strength" && workout.key === key && bestStrengthSet(workout))
+    .sort((a, b) => {
+      const aSet = bestStrengthSet(a);
+      const bSet = bestStrengthSet(b);
+      return Number(bSet.weight || 0) - Number(aSet.weight || 0) ||
+        Number(bSet.reps) - Number(aSet.reps) ||
+        workoutDateKey(b.date).localeCompare(workoutDateKey(a.date)) ||
+        (b.createdAt || "").localeCompare(a.createdAt || "");
+    })[0];
+}
+
+function renderBestRecords() {
+  const store = readStore();
+  elements.bestRecordsList.textContent = "";
+  const keys = Array.from(new Set(store.workouts.filter((workout) => workout.mode === "strength").map((workout) => workout.key)));
+  const records = keys.map((key) => bestStrengthWorkoutFor(key, store)).filter(Boolean);
+  if (!records.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "筋トレのセットを保存すると、種目ごとのベスト記録がここに表示されます。";
+    elements.bestRecordsList.append(empty);
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "best-records-table";
+  table.setAttribute("aria-label", "種目ごとのベスト記録");
+  const head = table.createTHead().insertRow();
+  ["種目", "記録日", "ベストセット", "全セット"].forEach((label) => {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = label;
+    head.append(cell);
+  });
+  const body = table.createTBody();
+  const setLabel = (set, key) => `${!strengthUsesLoad(key) && !Number(set.weight) ? "自重" : `${set.weight || 0} kg`} × ${set.reps}回`;
+  records.forEach((workout) => {
+    const best = bestStrengthSet(workout);
+    const row = body.insertRow();
+    const name = document.createElement("th");
+    name.scope = "row";
+    name.textContent = workout.name;
+    row.append(name);
+    const date = row.insertCell();
+    const time = document.createElement("time");
+    time.dateTime = workout.date;
+    time.textContent = workout.date.replaceAll("-", "/");
+    date.append(time);
+    const result = row.insertCell();
+    result.className = "best-record-result";
+    result.textContent = setLabel(best, workout.key);
+    const detailCell = row.insertCell();
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = `${workout.sets.length}セット・詳細`;
+    details.append(summary);
+    const sets = document.createElement("ol");
+    workout.sets.forEach((set) => {
+      const item = document.createElement("li");
+      item.textContent = setLabel(set, workout.key);
+      sets.append(item);
+    });
+    details.append(sets);
+    if (workout.notes) {
+      const notes = document.createElement("p");
+      notes.className = "best-record-notes";
+      notes.textContent = `備考: ${workout.notes}`;
+      details.append(notes);
+    }
+    detailCell.append(details);
+  });
+  elements.bestRecordsList.append(table);
+}
+
 function groupedWorkoutsByDate(store = readStore()) {
   const byDate = new Map();
   store.workouts.forEach((workout) => {
@@ -1525,6 +1611,7 @@ function renderAll() {
   renderPreviews();
   renderSummary();
   renderComparisonList();
+  renderBestRecords();
   renderHistory();
 }
 
@@ -1680,12 +1767,11 @@ function previousWorkoutFor(mode, key, { excludeId = editingWorkoutId } = {}) {
     })[0];
 }
 
-function copyLastStrengthSet() {
+function copyBestStrengthRecord() {
   const key = elements.strengthName.value;
-  const excludeId = editingWorkoutId;
-  const last = previousWorkoutFor("strength", key, { excludeId });
+  const last = bestStrengthWorkoutFor(key);
   if (!last) {
-    setStatus("選択中の日付以前に、同じ筋トレ種目の記録がありません。");
+    setStatus("同じ筋トレ種目のセット記録がありません。");
     return;
   }
   clearEditingState({ refreshLabel: false });
@@ -1698,7 +1784,7 @@ function copyLastStrengthSet() {
   }
   elements.strengthDuration.value = "";
   elements.strengthExtraDetails.open = false;
-  setStatus(`${last.date}の${last.name}をコピーしました。所要時間は自動計算します。`);
+  setStatus(`${last.date}の${last.name}のベスト記録をコピーしました。所要時間は自動計算します。`);
   setWorkoutNotes("strength", last.notes || "");
   renderPreviews();
 }
@@ -1847,7 +1933,7 @@ function bindEvents() {
   });
   elements.addSetButton.addEventListener("click", () => addSetRow());
   elements.copyLastCardioButton.addEventListener("click", copyLastCardio);
-  elements.copyLastStrengthButton.addEventListener("click", copyLastStrengthSet);
+  elements.copyBestStrengthButton.addEventListener("click", copyBestStrengthRecord);
   elements.resetRatesButton.addEventListener("click", resetRates);
   elements.exportButton.addEventListener("click", exportJson);
 

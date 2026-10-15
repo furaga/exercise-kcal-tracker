@@ -539,6 +539,11 @@ h3 {
   min-width: 104px;
 }
 
+#copyBestStrengthButton {
+  white-space: normal;
+  max-width: 145px;
+}
+
 .form-grid label,
 .cardio-extra-grid label,
 .duration-field,
@@ -1024,6 +1029,80 @@ select:focus,
   background: #fbfdfc;
 }
 
+.best-records-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.best-records-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.best-records-table th,
+.best-records-table td {
+  padding: 12px 16px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.best-records-table thead {
+  background: var(--soft);
+  color: #405f56;
+}
+
+.best-records-table thead th {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.best-records-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.best-records-table tbody tr:nth-child(even) {
+  background: #f8fbfa;
+}
+
+.best-records-table tbody th {
+  min-width: 140px;
+}
+
+.best-records-table time,
+.best-record-result {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.best-record-result {
+  font-weight: 700;
+}
+
+.best-records-table summary {
+  color: var(--teal-dark);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.best-records-table ol {
+  margin: 10px 0 0;
+  padding-left: 24px;
+  white-space: nowrap;
+}
+
+.best-record-notes {
+  margin: 10px 0 0;
+  min-width: 150px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .comparison-list {
   gap: 10px;
 }
@@ -1378,7 +1457,8 @@ select:focus,
   transition: transform 160ms ease;
 }
 
-.settings-panel[open] .settings-chevron {
+.settings-panel[open] .settings-chevron,
+.comparison-panel[open] .settings-chevron {
   transform: rotate(180deg);
 }
 
